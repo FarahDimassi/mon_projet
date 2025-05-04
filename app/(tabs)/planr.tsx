@@ -164,7 +164,7 @@ useEffect(() => {
     // Envoie au backend / coach
     try {
       const token = await getToken();
-      await fetch(`http://192.168.45.201:8080/api/meals/user/${mealId}/tick`, {
+      await fetch(`http://192.168.1.139:8080/api/meals/user/${mealId}/tick`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -180,7 +180,7 @@ useEffect(() => {
     try {
       const token = await getToken();
       const res = await fetch(
-        `http://192.168.45.201:8080/api/meals/user/${userId}/ticks?date=${date}`,
+        `http://192.168.1.139:8080/api/meals/user/${userId}/ticks?date=${date}`,
         {
           headers: { 
             'Content-Type': 'application/json',
@@ -210,10 +210,10 @@ useEffect(() => {
 
   // Fonction pour construire l'URL de l'image du coach
   const buildAvatarUrl = (rawUrl?: string) => {
-    const baseUrl = "http://192.168.45.201:8080/";
+    const baseUrl = "http://192.168.1.139:8080/";
     if (rawUrl && rawUrl.trim().length > 0) {
       return rawUrl.startsWith("http")
-        ? rawUrl.replace("localhost:8081", "192.168.45.201:8080")
+        ? rawUrl.replace("localhost:8081", "192.168.1.139:8080")
         : baseUrl + rawUrl;
     }
     return require("../../assets/images/profile.jpg");
@@ -279,8 +279,8 @@ const fetchMealPlanForDate = async (date: string, coachId: number) => {
     const avatarUrl =
       item.photoUrl && item.photoUrl.trim().length > 0
         ? item.photoUrl.startsWith("http")
-          ? item.photoUrl.replace("localhost:8081", "192.168.45.201:8080")
-          : `http://192.168.45.201:8080/${item.photoUrl}`
+          ? item.photoUrl.replace("localhost:8081", "192.168.1.139:8080")
+          : `http://192.168.1.139:8080/${item.photoUrl}`
         : null;
     const avatarSource = avatarUrl
       ? { uri: avatarUrl }
@@ -465,7 +465,7 @@ const fetchMealPlanForDate = async (date: string, coachId: number) => {
   
       // 4. Envoyer au back
       const token = await getToken();
-      const res = await fetch("http://192.168.45.201:8080/api/progress", {
+      const res = await fetch("http://192.168.1.139:8080/api/progress", {
         method: "POST",
         headers: {
         "Content-Type": "application/json",

@@ -245,15 +245,26 @@ export default function UserPage() {
 
   const handleIntroClose = async (action: "coachRell" | "coachIA") => {
     if (userId) {
-      await AsyncStorage.setItem(`selectedCoach_${userId}`, action === "coachRell" ? "reel" : "ia");
+      const coachType = action === "coachRell" ? "reel" : "ia";
+      // Sauvegarder le choix dans AsyncStorage
+      await AsyncStorage.setItem(`selectedCoach_${userId}`, coachType);
+      
+      try {
+        // Mettre à jour le type de coach dans la base de données
+        await updateUserCoach(coachType);
+        console.log(`✓ Type de coach ${coachType} enregistré en base de données`);
+      } catch (error) {
+        console.error("❌ Erreur lors de la mise à jour du coach en base:", error);
+      }
     }
+    
     setShowIntroModal(false);
     if (action === "coachRell") {
       router.replace("/reel");
     }
   };
 
-  // ----------------------------------- NEW CODE HERE -----------------------------------
+  // ----------------------------------- PERSISTANCE DES TICKS -----------------------------------
   // Charger les plats scannés depuis l'API en fonction de la date locale
   useEffect(() => {
     const fetchScannedProducts = async () => {
@@ -287,69 +298,15 @@ export default function UserPage() {
     fetchScannedProducts();
   }, [userId, currentDay]);
 
-  // Réinitialisation automatique des ticks si le jour du plan change
+  // Charger les ticks au démarrage de l'application
   useEffect(() => {
-    const resetTicksIfDayChanged = async () => {
-      if (!userId || !currentDayPlan) return;
-
-      const diaryKey = `diaryTicks_${userId}`;
-      const storedTicks = await AsyncStorage.getItem(diaryKey);
-      if (storedTicks) {
-        const ticks = JSON.parse(storedTicks);
-        // On stocke le jour déjà associé aux ticks (s'il existe)
-        const storedDay = ticks.day;
-
-        // Si aucun jour n'est stocké, ou si le jour actuel du plan est différent
-        if (!storedDay || storedDay !== currentDayPlan.day) {
-          // On réinitialise les ticks
-          const resetTicks = {
-            mealCompletion: {
-              breakfast: false,
-              lunch: false,
-              dinner: false,
-              snacks: false,
-            },
-            activityCompletion: false,
-            stepsCompletion: false,
-            distanceCompletion: false,
-            caloriesCompletion: false,
-            waterCompletion: false,
-            day: currentDayPlan.day, // on stocke désormais le jour actuel
-          };
-
-          await AsyncStorage.setItem(diaryKey, JSON.stringify(resetTicks));
-
-          // On remet également les états React à zéro
-          setMealCompletion(resetTicks.mealCompletion);
-          setActivityCompletion(false);
-          setStepsCompletion(false);
-          setDistanceCompletion(false);
-          setCaloriesCompletion(false);
-          setWaterCompletion(false);
-        }
-      } else {
-        // S'il n'y a pas de ticks stockés, on en crée avec le jour actuel
-        const newTicks = {
-          mealCompletion: {
-            breakfast: false,
-            lunch: false,
-            dinner: false,
-            snacks: false,
-          },
-          activityCompletion: false,
-          stepsCompletion: false,
-          distanceCompletion: false,
-          caloriesCompletion: false,
-          waterCompletion: false,
-          day: currentDayPlan.day,
-        };
-        await AsyncStorage.setItem(diaryKey, JSON.stringify(newTicks));
-      }
-    };
-
-    resetTicksIfDayChanged();
-  }, [currentDayPlan, userId]);
-  // --------------------------------- END NEW CODE -----------------------------------
+    if (userId && currentDayPlan) {
+      loadDiaryTicks();
+      console.log("Ticks chargés pour l'utilisateur", userId);
+    }
+  }, [userId, currentDayPlan]);
+  
+  // --------------------------------- FIN PERSISTANCE TICKS -----------------------------------
 
   // Charger éventuellement les plats scannés stockés (version offline)
   useEffect(() => {
@@ -535,12 +492,12 @@ export default function UserPage() {
   };
 
   // Notifications
-  const handleNotifications = async () => {
+/*   const handleNotifications = async () => {
     if (userId) {
       await getUnreadNotificationsCount(userId);
     }
     setModalVisible(true);
-  };
+  }; */
 
   // Ouvrir la modale de détail d’un repas
   const handleMealPress = (mealType: string, detail: string) => {
@@ -550,44 +507,81 @@ export default function UserPage() {
   };
 
   // Cocher / Décocher un repas manuellement
-  const handleMealComplete = (mealType: keyof typeof mealCompletion) => {
+  const handleMealComplete = async (mealType: keyof typeof mealCompletion) => {
+      // Mise à jour de l'état local
       const newState = { ...mealCompletion, [mealType]: !mealCompletion[mealType] };
       setMealCompletion(newState);
-      updateDiaryTicks({ mealCompletion: newState });
+      
+      // Sauvegarde dans AsyncStorage pour persistance
+      try {
+        await updateDiaryTicks({ mealCompletion: newState });
+        console.log(`✓ Statut de ${mealType} sauvegardé: ${newState[mealType]}`, userId);
+      } catch (error) {
+        console.error("Erreur lors de la sauvegarde du tick:", error);
+      }
   };
 
-  // Cocher / Décocher l’activité
-  const handleActivityComplete = () => {
+  // Cocher / Décocher l'activité
+  const handleActivityComplete = async () => {
     const newVal = !activityCompletion;
     setActivityCompletion(newVal);
-    updateDiaryTicks({ activityCompletion: newVal });
+    try {
+      await updateDiaryTicks({ activityCompletion: newVal });
+      console.log(`✓ Statut de l'activité sauvegardé: ${newVal}`, userId);
+    } catch (error) {
+      console.error("Erreur lors de la sauvegarde du tick d'activité:", error);
+    }
   };
-  const handleStepsComplete = () => {
+  
+  const handleStepsComplete = async () => {
     const newVal = !stepsCompletion;
     setStepsCompletion(newVal);
-    updateDiaryTicks({ stepsCompletion: newVal });
+    try {
+      await updateDiaryTicks({ stepsCompletion: newVal });
+      console.log(`✓ Statut des steps sauvegardé: ${newVal}`, userId);
+    } catch (error) {
+      console.error("Erreur lors de la sauvegarde du tick de steps:", error);
+    }
   };
-  const handleDistanceComplete = () => {
+  
+  const handleDistanceComplete = async () => {
     const newVal = !distanceCompletion;
     setDistanceCompletion(newVal);
-    updateDiaryTicks({ distanceCompletion: newVal });
+    try {
+      await updateDiaryTicks({ distanceCompletion: newVal });
+      console.log(`✓ Statut de distance sauvegardé: ${newVal}`, userId);
+    } catch (error) {
+      console.error("Erreur lors de la sauvegarde du tick de distance:", error);
+    }
   };
-  const handleCaloriesComplete = () => {
+  
+  const handleCaloriesComplete = async () => {
     const newVal = !caloriesCompletion;
     setCaloriesCompletion(newVal);
-    updateDiaryTicks({ caloriesCompletion: newVal });
+    try {
+      await updateDiaryTicks({ caloriesCompletion: newVal });
+      console.log(`✓ Statut de calories sauvegardé: ${newVal}`, userId);
+    } catch (error) {
+      console.error("Erreur lors de la sauvegarde du tick de calories:", error);
+    }
   };
-  const handleWaterComplete = () => {
+  
+  const handleWaterComplete = async () => {
     const newVal = !waterCompletion;
     setWaterCompletion(newVal);
-    updateDiaryTicks({ waterCompletion: newVal });
+    try {
+      await updateDiaryTicks({ waterCompletion: newVal });
+      console.log(`✓ Statut d'eau sauvegardé: ${newVal}`, userId);
+    } catch (error) {
+      console.error("Erreur lors de la sauvegarde du tick d'eau:", error);
+    }
   };
 
   return (
     <ProtectedRoute>
       <NavbarIA />
 
-      {/* Modale de Notifications */}
+    {/*   
       <Modal visible={modalVisible} animationType="fade" transparent={true}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
@@ -609,7 +603,7 @@ export default function UserPage() {
             />
           </View>
         </View>
-      </Modal>
+      </Modal> */}
 
       {/* Modale de détail d'un repas */}
       <Modal

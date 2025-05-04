@@ -151,7 +151,7 @@ async function loadTotals(
 
   // 1) URL de base : uniquement date
  // date = "2025-04-18" // fasa5ha ba3ed
-  let url = `http://192.168.45.201:8080/api/stat/user/${userId}/totals?date=${date}`;
+  let url = `http://192.168.1.139:8080/api/stat/user/${userId}/totals?date=${date}`;
 
   // 2) Si on a activity+duration, on les ajoute
   if (activity && duration != null) {
@@ -177,7 +177,7 @@ async function loadDailyStats(
 ): Promise<DailyStat[]> {
   const token = await getToken();
   const res = await fetch(
-    `http://192.168.45.201:8080/api/stat/user/${userId}/stats?startDate=${startDate}&endDate=${endDate}`,
+    `http://192.168.1.139:8080/api/stat/user/${userId}/stats?startDate=${startDate}&endDate=${endDate}`,
     {
       headers: {
         "Content-Type": "application/json",

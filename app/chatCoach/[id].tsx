@@ -89,7 +89,7 @@ const ChatCoach: React.FC = () => {
       // Récupérer votre propre nom d'utilisateur
       if (newToken) {
         try {
-          const response = await fetch(`http://192.168.100.135:8080/api/chat/get-my-username`, {
+          const response = await fetch(`http://192.168.1.139:8080/api/chat/get-my-username`, {
             headers: { Authorization: `Bearer ${newToken}` },
           });
           if (response.ok) {
@@ -135,7 +135,7 @@ const ChatCoach: React.FC = () => {
     if (!token || !userId || !receiverId) return;
 
     // Récupérer l'historique du chat
-    fetch(`http://192.168.100.135:8080/api/chat/history/${receiverId}`, {
+    fetch(`http://192.168.1.139:8080/api/chat/history/${receiverId}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => {
@@ -157,7 +157,7 @@ const ChatCoach: React.FC = () => {
     const roomId = buildRoomId(userId, receiverId);
 
     // Création de la connexion via SockJS à votre endpoint WebSocket
-    const socket = new SockJS(`http://192.168.100.135:8080/ws?token=${token}`);
+    const socket = new SockJS(`http://192.168.1.139:8080/ws?token=${token}`);
     const stompClient = new Client({
       webSocketFactory: () => socket,
       reconnectDelay: 5000,
@@ -233,7 +233,7 @@ const ChatCoach: React.FC = () => {
   // Récupération du nom d'utilisateur du destinataire
   useEffect(() => {
     if (token && receiverId) {
-      fetch(`http://192.168.100.135:8080/api/chat/get-username-by-id/${receiverId}`, {
+      fetch(`http://192.168.1.139:8080/api/chat/get-username-by-id/${receiverId}`, {
         headers: { Authorization: `Bearer ${token}` },
       })
         .then((res) => {

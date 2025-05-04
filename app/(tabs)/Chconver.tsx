@@ -16,6 +16,7 @@ import {
   StatusBar,
   Alert,
   ActionSheetIOS,
+  Linking,
 } from "react-native";
 import SockJS from "sockjs-client";
 import { Client } from "@stomp/stompjs";
@@ -32,7 +33,8 @@ import { getUserIdFromToken, getToken } from "../../utils/authService";
 import FooterC from "../../components/FooterC";
 import NavbarCoach from "@/components/NavbarCoach";
 
-
+// Import useRouter pour la navigation
+import { useLocalSearchParams, useRouter } from "expo-router";
 
 // Types
 interface ChatContact {
@@ -56,6 +58,11 @@ interface ChatMessage {
 }
 
 const ChatScreen: React.FC = () => {
+  const router = useRouter(); // Pour la navigation vers VideoRoom
+  // Récupérer les paramètres, notamment le lien de réunion partagé
+  const params = useLocalSearchParams();
+  const { roomLink } = params;
+
   // ─── Helpers pour générer le fichier RN + MIME ───
 const getFileExtension = (uri: string) =>
   uri.includes('.') ? uri.split('.').pop()!.toLowerCase() : '';
@@ -130,7 +137,7 @@ const guessMime = (ext: string) => {
     if (!token || !userId) return;
     const fetchContacts = async () => {
       try {
-        const url = `http://192.168.100.135:8080/api/chat/contacts?userId=${userId}`;
+        const url = `http://192.168.1.139:8080/api/chat/contacts?userId=${userId}`;
         const response = await fetch(url, {
           method: "GET",
           headers: {
@@ -158,6 +165,8 @@ const guessMime = (ext: string) => {
         shouldShowAlert: true,
         shouldPlaySound: true,
         shouldSetBadge: false,
+        shouldShowBanner: true,
+        shouldShowList: true,
       }),
     });
   
@@ -208,8 +217,8 @@ const guessMime = (ext: string) => {
         });
       }
     })();
-  }, []);
-   */
+  }, []); */
+  
   // Chargement de l'historique et configuration du WebSocket
   useEffect(() => {
     if (!selectedContact || !token || !userId) return;
@@ -217,7 +226,7 @@ const guessMime = (ext: string) => {
 
     const fetchHistory = async () => {
       try {
-        const url = `http://192.168.100.135:8080/api/chat/history/${selectedContact.partnerId}?userId=${userId}`;
+        const url = `http://192.168.1.139:8080/api/chat/history/${selectedContact.partnerId}?userId=${userId}`;
         const res = await fetch(url, {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -258,7 +267,7 @@ const guessMime = (ext: string) => {
     };
     const roomId = buildRoomId(userId, selectedContact.partnerId);
 
-    const socket = new SockJS(`http://192.168.100.135:8080/ws?token=${token}`);
+    const socket = new SockJS(`http://192.168.1.139:8080/ws?token=${token}`);
     const stompClient = new Client({
       webSocketFactory: () => socket,
       reconnectDelay: 5000,
@@ -331,6 +340,109 @@ const guessMime = (ext: string) => {
         }
       }, 100);
       setMessage("");
+    }
+  };
+
+  // Fonction pour démarrer une visioconférence et partager le lien
+const startVideoCall = () => {
+  try {
+    // Générer un nom de salle unique qui ne contient pas de caractères spéciaux
+    const simpleRoomName = `meeting${userId}${Date.now()}`;
+    const meetingLink = `https://meet.jit.si/${simpleRoomName}`;
+    
+    // Vérifier si un client WebSocket est disponible
+    if (!client || !client.connected) {
+      console.log("Client WebSocket non connecté, création d'une nouvelle connexion...");
+      
+      const token = getToken();
+      if (!token) {
+        Alert.alert("Erreur d'authentification", "Veuillez vous reconnecter et réessayer.");
+        return;
+      }
+      
+      // Réinitialiser la connexion WebSocket
+      const socket = new SockJS(`http://192.168.1.139:8080/ws?token=${token}`);
+      const newStompClient = new Client({
+        webSocketFactory: () => socket,
+        reconnectDelay: 5000,
+        debug: (str) => console.log(str),
+      });
+      
+      newStompClient.onConnect = () => {
+        console.log("Nouvelle connexion établie, envoi des invitations...");
+        // Attendre un court instant que la connexion soit complètement établie
+        setTimeout(() => {
+          sendInvitations(newStompClient, simpleRoomName, meetingLink);
+        }, 1000);
+      };
+      
+      newStompClient.activate();
+      setClient(newStompClient);
+    } else {
+      // Si le client est déjà connecté, envoi direct des invitations
+      console.log("Client WebSocket déjà connecté, envoi direct des invitations...");
+      sendInvitations(client, simpleRoomName, meetingLink);
+    }
+  } catch (e) {
+    console.error("Erreur lors du démarrage de l'appel vidéo:", e);
+    Alert.alert("Erreur", "Impossible de démarrer l'appel vidéo.");
+  }
+};
+  
+  // Fonction d'aide pour envoyer les invitations et rediriger vers la salle
+  const sendInvitations = (stompClient: Client, roomName: string, meetingLink: string) => {
+    try {
+      let contactsCount = 0;
+      
+      // Envoyer le lien à tous les contacts de manière fiable
+      contacts.forEach(contact => {
+        const invitationMessage = {
+          receiverId: contact.partnerId,
+          // Message simplifié avec juste le lien, sans le texte d'introduction
+          message: `${meetingLink}`,
+          date: new Date().toISOString(),
+          type: "INVITATION"  // Capital pour être cohérent avec le backend
+        };
+        
+        stompClient.publish({
+          destination: "/app/chat",
+          body: JSON.stringify(invitationMessage),
+        });
+        contactsCount++;
+      });
+      
+      // Afficher confirmation
+      Alert.alert(
+        "Invitation envoyée", 
+        `Le lien de la réunion a été envoyé à ${contactsCount} contact(s).`,
+        [{ 
+          text: "Rejoindre maintenant", 
+          onPress: () => {
+            console.log("Navigation vers VideoRoom avec roomName:", roomName);
+            // Ouvrir directement dans le navigateur pour garantir la compatibilité
+            if (Platform.OS === 'web') {
+              window.open(meetingLink, '_blank');
+            } else {
+              Linking.openURL(meetingLink);
+            }
+            
+            // Rediriger également vers la page VideoRoom de l'application
+            router.push({
+              pathname: '/VideoRoom',
+              params: {
+                sessionId: Date.now().toString(),
+                userId: userId,
+                isHost: true,
+                roomName: roomName,
+                directLink: meetingLink
+              }
+            });
+          }
+        }]
+      );
+    } catch (error) {
+      console.error("Erreur lors de l'envoi des invitations:", error);
+      Alert.alert("Erreur", "Impossible d'envoyer les invitations, veuillez réessayer.");
     }
   };
 
@@ -437,7 +549,7 @@ const uploadAndSendImage = async (uri: string, webFile?: File) => {
         } as any);
       }
   
-      const res = await fetch('http://192.168.100.135:8080/api/chat/upload/image', {
+      const res = await fetch('http://192.168.1.139:8080/api/chat/upload/image', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
@@ -567,7 +679,7 @@ const uploadAndSendImage = async (uri: string, webFile?: File) => {
           } as any);
         }
     
-        const res = await fetch('http://192.168.100.135:8080/api/chat/upload/audio', {
+        const res = await fetch('http://192.168.1.139:8080/api/chat/upload/audio', {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}` },
           body: formData,
@@ -614,76 +726,178 @@ const uploadAndSendImage = async (uri: string, webFile?: File) => {
     }
   };
 
-  // Rendu d'un message avec gestion des attachements
+  // Rendu d'un message avec gestion des attachements et liens d'invitation
   const renderMessage = (item: ChatMessage) => {
-     // Conteneur de message avec style conditionnel selon l'expéditeur
-     return (
-       <View style={[
-         styles.messageBubbleContainer,
-         item.isFromMe ? styles.myMessageContainer : styles.theirMessageContainer,
-       ]}>
-         <View style={[
-           styles.messageBubble,
-           item.isFromMe ? styles.myMessage : styles.theirMessage,
-         ]}>
-           {/* Contenu du message en fonction du type */}
-           {item.attachmentType === 'image' && item.attachmentUrl ? (
-             <TouchableOpacity onPress={() => {}/* Ouvrir l'image en plein écran */}>
-               <Image 
-                 source={{ uri: item.attachmentUrl.replace("localhost:8081", "192.168.100.135:8080") }} 
-                 style={styles.attachmentImage} 
-                 resizeMode="cover"
-               />
-               <Text style={[
-                 styles.messageText,
-                 item.isFromMe ? styles.myMessageText : styles.theirMessageText,
-               ]}>
-                 {item.message}
-               </Text>
-             </TouchableOpacity>
-           ) : item.attachmentType === 'audio' && item.attachmentUrl ? (
-             <TouchableOpacity 
-               style={styles.audioContainer}
-               onPress={() => playAudio(item.attachmentUrl?.replace("localhost:8081", "192.168.100.135:8080") || '')}
-             >
-               <Ionicons name="play-circle" size={24} color={item.isFromMe ? "rgba(155, 0, 0, 0.8)" : "#555"} />
-               <View style={styles.audioInfo}>
-                 <Text style={[
-                   styles.messageText,
-                   item.isFromMe ? styles.myMessageText : styles.theirMessageText,
-                 ]}>
-                   {item.message}
-                 </Text>
-               </View>
-             </TouchableOpacity>
-           ) : (
-             <Text style={[
-               styles.messageText,
-               item.isFromMe ? styles.myMessageText : styles.theirMessageText,
-             ]}>
-               {item.message}
-             </Text>
-           )}
-         </View>
-         
-         <Text style={[
-           styles.messageTime,
-           item.isFromMe ? styles.myMessageTime : styles.theirMessageTime,
-         ]}>
-           {item.date ? new Date(item.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}
-         </Text>
-       </View>
-     );
-   };
- 
+    // Vérifier si le message contient un lien d'invitation ou un lien direct Jitsi
+    const isInvitationMessage = item.message && item.message.includes("Invitation à une réunion vidéo:");
+    
+    // Différents formats possibles de liens Jitsi
+    const jitsiPattern = /(https?:\/\/)?(meet\.jit\.si\/[a-zA-Z0-9-_]+)|(https?:\/\/meet\.jit\.si\/[a-zA-Z0-9-_]+)/i;
+    const containsJitsiLink = item.message && jitsiPattern.test(item.message);
+    
+    // Extraire le nom de la salle depuis le message
+    let meetingLink = null;
+    let roomName = null;
+    
+    if ((isInvitationMessage || containsJitsiLink) && item.message) {
+      // Rechercher le lien avec ou sans protocole
+      const fullLinkMatch = item.message.match(jitsiPattern);
+      if (fullLinkMatch) {
+        // Normaliser le lien pour garantir qu'il a un protocole
+        meetingLink = fullLinkMatch[0];
+        if (!meetingLink.startsWith('http')) {
+          meetingLink = 'https://' + meetingLink;
+        }
+        
+        // Extraire le nom de la salle (partie après le dernier /)
+        const parts = meetingLink.split('/');
+        roomName = parts[parts.length - 1];
+        console.log("URL extraite:", meetingLink, "Nom de salle:", roomName);
+      }
+    }
+    
+    // Si le message est un lien brut Jitsi, l'afficher comme un bouton cliquable
+    if (containsJitsiLink && meetingLink) {
+      return (
+        <View style={[
+          styles.messageBubbleContainer,
+          item.isFromMe ? styles.myMessageContainer : styles.theirMessageContainer,
+        ]}>
+          <View style={[
+            styles.messageBubble,
+            item.isFromMe ? styles.myMessage : styles.theirMessage,
+            styles.linkMessage
+          ]}>
+            <View style={styles.jitsiLinkContainer}>
+              <Ionicons name="videocam" size={20} color="#4CAF50" style={{marginRight: 8}} />
+              <TouchableOpacity 
+                onPress={() => {
+                  if (meetingLink) {
+                    if (Platform.OS === 'web') {
+                      window.open(meetingLink, '_blank');
+                    } else {
+                      Linking.openURL(meetingLink);
+                    }
+                  }
+                }}
+                style={styles.linkButtonContainer}
+              >
+                <Text style={styles.jitsiLink}>Rejoindre la visioconférence</Text>
+              </TouchableOpacity>
+            </View>
+            
+            {/* Afficher également l'URL brute comme référence */}
+            <Text style={styles.meetingUrlText}>{item.message}</Text>
+          </View>
+          
+          <Text style={[
+            styles.messageTime,
+            item.isFromMe ? styles.myMessageTime : styles.theirMessageTime,
+          ]}>
+            {item.date ? new Date(item.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}
+          </Text>
+        </View>
+      );
+    }
+    
+    // Le reste du code reste inchangé pour les autres types de messages
+    return (
+      <View style={[
+        styles.messageBubbleContainer,
+        item.isFromMe ? styles.myMessageContainer : styles.theirMessageContainer,
+      ]}>
+        <View style={[
+          styles.messageBubble,
+          item.isFromMe ? styles.myMessage : styles.theirMessage,
+          isInvitationMessage ? styles.invitationMessage : null,
+        ]}>
+          {/* Contenu du message en fonction du type */}
+          {item.attachmentType === 'image' && item.attachmentUrl ? (
+            <TouchableOpacity onPress={() => {}/* Ouvrir l'image en plein écran */}>
+              <Image 
+                source={{ uri: item.attachmentUrl.replace("localhost:8081", "192.168.1.139:8080") }} 
+                style={styles.attachmentImage} 
+                resizeMode="cover"
+              />
+              <Text style={[
+                styles.messageText,
+                item.isFromMe ? styles.myMessageText : styles.theirMessageText,
+              ]}>
+                {item.message}
+              </Text>
+            </TouchableOpacity>
+          ) : item.attachmentType === 'audio' && item.attachmentUrl ? (
+            <TouchableOpacity 
+              style={styles.audioContainer}
+              onPress={() => playAudio(item.attachmentUrl?.replace("localhost:8081", "192.168.1.139:8080") || '')}
+            >
+              <Ionicons name="play-circle" size={24} color={item.isFromMe ? "rgba(155, 0, 0, 0.8)" : "#555"} />
+              <View style={styles.audioInfo}>
+                <Text style={[
+                  styles.messageText,
+                  item.isFromMe ? styles.myMessageText : styles.theirMessageText,
+                ]}>
+                  {item.message}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          ) : isInvitationMessage ? (
+            // Rendre les messages d'invitation avec URL directement cliquable
+            <View style={styles.invitationContainer}>
+              <Ionicons name="videocam" size={24} color={item.isFromMe ? "rgba(155, 0, 0, 0.8)" : "#4CAF50"} style={styles.invitationIcon} />
+              <View style={styles.invitationTextContainer}>
+                <Text style={[
+                  styles.messageText,
+                  item.isFromMe ? styles.myMessageText : styles.theirMessageText,
+                  styles.invitationText
+                ]}>
+                  Invitation à une réunion vidéo
+                </Text>
+                {meetingLink && (
+                  <TouchableOpacity 
+                    onPress={() => {
+                      if (meetingLink) {
+                        if (Platform.OS === 'web') {
+                          window.open(meetingLink, '_blank');
+                        } else {
+                          Linking.openURL(meetingLink);
+                        }
+                      }
+                    }}
+                    style={styles.linkButtonContainer}
+                  >
+                    <Text style={styles.hyperLink}>Cliquez ici pour rejoindre</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+          ) : (
+            <Text style={[
+              styles.messageText,
+              item.isFromMe ? styles.myMessageText : styles.theirMessageText,
+            ]}>
+              {item.message}
+            </Text>
+          )}
+        </View>
+        
+        <Text style={[
+          styles.messageTime,
+          item.isFromMe ? styles.myMessageTime : styles.theirMessageTime,
+        ]}>
+          {item.date ? new Date(item.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}
+        </Text>
+      </View>
+    );
+  };
 
   // Rendu d'un item contact
   const renderContactItem = ({ item }: { item: ChatContact }) => {
     const avatarUrl =
       item.partnerImageUrl && item.partnerImageUrl.trim().length > 0
         ? item.partnerImageUrl.startsWith("http")
-          ? item.partnerImageUrl.replace("localhost:8081", "192.168.100.135:8080")
-          : `http://192.168.100.135:8080/${item.partnerImageUrl}`
+          ? item.partnerImageUrl.replace("localhost:8081", "192.168.1.139:8080")
+          : `http://192.168.1.139:8080/${item.partnerImageUrl}`
         : null;
     const avatarSource = avatarUrl
       ? { uri: avatarUrl }
@@ -722,7 +936,6 @@ const uploadAndSendImage = async (uri: string, webFile?: File) => {
       <View style={styles.searchContainer}>
         <TextInput
           style={styles.searchInput}
-          placeholder="Rechercher un contact..."
           placeholderTextColor="rgba(155, 0, 0, 0.4)"
           value={searchQuery}
           onChangeText={setSearchQuery}
@@ -730,9 +943,88 @@ const uploadAndSendImage = async (uri: string, webFile?: File) => {
         <FontAwesome5 name="search" size={20} color="rgba(155, 0, 0, 0.6)" style={styles.searchIcon} />
       </View>
   
-      {/* Liste des contacts */}
+      {/* Liste des contacts avec bouton d'appel vidéo global */}
       <View style={styles.contactListContainer}>
-        <Text style={styles.header}>Mes Discussions</Text>
+        <View style={styles.headerContainer}>
+          <Text style={styles.header}>Mes Discussions</Text>
+          <TouchableOpacity 
+            style={styles.globalVideoCallButton} 
+            onPress={() => {
+              // Démarrer un appel général à tous les abonnés
+              try {
+                // Vérifier si le client WebSocket est connecté
+                if (!client) {
+                  Alert.alert("Erreur de connexion", "Impossible d'envoyer les invitations, veuillez réessayer.");
+                  return;
+                }
+                
+                // Générer un nom de salle unique avec timestamp
+                const simpleRoomName = `meeting${userId}${Date.now()}`;
+                const meetingLink = `https://meet.jit.si/${simpleRoomName}`;
+                
+                let sentCount = 0;
+                
+                // Envoyer le lien à tous les contacts de manière fiable
+                contacts.forEach(contact => {
+                  if (client) {
+                    const invitationMessage = {
+                      receiverId: contact.partnerId,
+                      message: `Invitation à une réunion vidéo: ${meetingLink}`,
+                      date: new Date().toISOString(),
+                      type: "INVITATION"  // Capital pour être cohérent avec le backend
+                    };
+                    
+                    client.publish({
+                      destination: "/app/chat",
+                      body: JSON.stringify(invitationMessage),
+                    });
+                    sentCount++;
+                  }
+                });
+                
+                // Afficher confirmation avec nombre d'abonnés
+                Alert.alert(
+                  "Invitation envoyée", 
+                  `Le lien de la réunion a été envoyé à ${sentCount} contact(s).`,
+                  [{ 
+                    text: "Rejoindre maintenant", 
+                    onPress: () => {
+                      console.log("Navigation vers VideoRoom avec roomName:", simpleRoomName);
+                      
+                      // Utiliser directement le navigateur externe pour plus de fiabilité
+                      if (Platform.OS === 'web') {
+                        window.open(meetingLink, '_blank');
+                      } else {
+                        Linking.openURL(meetingLink);
+                      }
+                      
+                      // Ne pas utiliser la redirection interne qui peut causer des problèmes
+                      // Commenté pour éviter l'erreur de navigation
+                      /*
+                      router.push({
+                        pathname: '/VideoRoom',
+                        params: {
+                          sessionId: Date.now().toString(),
+                          userId: userId,
+                          isHost: "true",
+                          roomName: simpleRoomName,
+                          directLink: meetingLink
+                        }
+                      });
+                      */
+                    }
+                  }]
+                );
+              } catch (e) {
+                console.error("Erreur lors du démarrage de l'appel vidéo:", e);
+                Alert.alert("Erreur", "Impossible de démarrer l'appel vidéo.");
+              }
+            }}
+          >
+            <Ionicons name="videocam" size={24} color="#fff" />
+          </TouchableOpacity>
+        </View>
+      
         {loadingContacts ? (
           <ActivityIndicator size="large" color="rgba(155, 0, 0, 0.6)" />
         ) : contacts.length === 0 ? (
@@ -772,13 +1064,18 @@ const uploadAndSendImage = async (uri: string, webFile?: File) => {
                 selectedContact.partnerImageUrl?.trim()
                   ? { uri: selectedContact.partnerImageUrl.startsWith('http')
                         ? selectedContact.partnerImageUrl.replace('localhost:8081', 'localhost:8080')
-                        : `http://192.168.100.135:8080/${selectedContact.partnerImageUrl}` }
+                        : `http://192.168.1.139:8080/${selectedContact.partnerImageUrl}` }
                   : require('../../assets/images/profile.jpg')
               }
               style={styles.profileImage}
             />
             <Text style={styles.profileName}>{selectedContact.partnerName}</Text>
           </View>
+
+          {/* Bouton d'appel vidéo */}
+          <TouchableOpacity style={styles.videoCallButton} onPress={startVideoCall}>
+            <Ionicons name="videocam" size={24} color="#fff" />
+          </TouchableOpacity>
         </View>
 
         {/* — Corps (liste) — */}
@@ -952,14 +1249,32 @@ const styles = StyleSheet.create({
     backgroundColor: "#f5f0f0",
     padding: 12,
   },
+  headerContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 16,
+  },
   header: {
     fontSize: 24,
     fontWeight: "700",
-    marginBottom: 16,
     color: "rgba(155, 0, 0, 0.85)",
     fontFamily: "BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
     textAlign: "center",
     letterSpacing: 0.3,
+  },
+  globalVideoCallButton: {
+    backgroundColor: "#4CAF50", // Couleur verte comme dans VideoRoom
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 5,
   },
   emptyText: {
     fontSize: 16,
@@ -1277,4 +1592,81 @@ cancelOptionText: {
   textAlign: "center",
   fontFamily: "BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
 },
+videoCallButton: {
+  width: 50,
+  height: 50,
+  borderRadius: 25,
+  backgroundColor: "#4CAF50", // Couleur verte comme dans VideoRoom
+  justifyContent: "center",
+  alignItems: "center",
+  shadowColor: "#000",
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.3,
+  shadowRadius: 3,
+  elevation: 5,
+  marginRight: 10,
+},
+// Styles pour les messages d'invitation
+  invitationMessage: {
+    backgroundColor: 'rgba(76, 175, 80, 0.1)',
+    borderColor: '#4CAF50',
+    borderWidth: 1,
+  },
+  invitationContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 5,
+  },
+  invitationIcon: {
+    marginRight: 10,
+  },
+  invitationTextContainer: {
+    flex: 1,
+  },
+  invitationText: {
+    color: '#4CAF50',
+    fontWeight: '500',
+  },
+  tapToJoinText: {
+    fontSize: 12,
+    color: '#4CAF50',
+    fontStyle: 'italic',
+    marginTop: 4,
+  },
+  meetingLink: {
+    fontSize: 12,
+    color: '#4CAF50',
+    textDecorationLine: 'underline',
+    marginTop: 3,
+    marginBottom: 3,
+  },
+  clickableLink: {
+    fontSize: 12,
+    color: '#4CAF50',
+    textDecorationLine: 'underline',
+    marginTop: 3,
+    marginBottom: 3,
+  },
+  linkMessage: {
+    backgroundColor: 'rgba(76, 175, 80, 0.1)',
+    borderColor: '#4CAF50',
+    borderWidth: 1,
+  },
+  jitsiLinkContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  linkButtonContainer: {
+    flex: 1,
+  },
+  jitsiLink: {
+    color: '#4CAF50',
+    textDecorationLine: 'underline',
+    fontWeight: '500',
+  },
+  hyperLink: {
+    color: '#4CAF50',
+    textDecorationLine: 'underline',
+    fontWeight: '500',
+  },
 });

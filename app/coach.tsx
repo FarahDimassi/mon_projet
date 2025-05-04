@@ -141,6 +141,8 @@ export default function CoachDashboard() {
         shouldShowAlert: true,
         shouldPlaySound: true,
         shouldSetBadge: false,
+        shouldShowBanner: true,
+        shouldShowList: true,
       }),
     });
   
@@ -788,10 +790,10 @@ useEffect(() => {
 
 const buildAvatarUrl = (rawUrl?: string) => {
   console.log(rawUrl);
-  const baseUrl = "http://192.168.45.201:8080/";
+  const baseUrl = "http://192.168.1.139:8080/";
   if (rawUrl && rawUrl.trim().length > 0) {
     return rawUrl.startsWith("http")
-      ? rawUrl.replace("localhost:8081", "192.168.45.201:8080")
+      ? rawUrl.replace("localhost:8081", "192.168.1.139:8080")
       : baseUrl + rawUrl;
   }
   console.log(rawUrl);

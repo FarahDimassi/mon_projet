@@ -50,7 +50,7 @@ export async function registerForPushNotificationsAsync(): Promise<string> {
   // Envoie-le à ton backend
   const jwt = await getToken();
   const userId = await getUserIdFromToken();
-  await fetch('http://192.168.100.135:8080/api/notifications/register-device', {
+  await fetch('http://192.168.1.139:8080/api/notifications/register-device', {
     method:  'POST',
     headers: {
       'Content-Type':  'application/json',

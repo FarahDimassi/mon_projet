@@ -5,7 +5,7 @@ import { getUserIdFromToken, getToken } from '../../utils/tokenUtils';
 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-let API_URL = "http://192.168.100.206:8080";
+let API_URL = "http://192.168.1.139:8080";
 export default function VideoCallsScreen() {
   const router = useRouter();
   interface Contact {

@@ -79,23 +79,25 @@ export default function CoachNavBar() {
   // Navigation vers le calendrier
   const handleCalendar = () => router.push("/CalendarUserIA");
 
-  // Affiche un alert avec le nombre de notifications non lues
+  // Navigation vers l'écran des notifications
   const handleNotifications = async () => {
     try {
-      const coachId = await getUserIdFromToken();
-      if (coachId) {
-        Alert.alert(
-          "Notifications",
-          `Vous avez ${unreadCount} notification${unreadCount !== 1 ? "s" : ""} non lue${
-            unreadCount !== 1 ? "s" : ""
-          }.`
-        );
+      console.log("🔔 Notification icon clicked");
+      const userId = await getUserIdFromToken();
+      if (userId) {
+        console.log(`✓ User ID: ${userId} retrieved successfully`);
+        // Mettre à jour le compteur de notifications non lues
+        const count = await getUnreadNotificationsCount(userId);
+        setUnreadCount(0); // Réinitialiser le compteur car on va voir les notifications
+        console.log("✓ Notifications marked as read, navigating to NotificationsScreen...");
+        router.push("/NotificationsScreen");
       } else {
+        console.log("❌ No user ID found");
         Alert.alert("Notifications", "Impossible de récupérer votre ID.");
       }
-    } catch (error) {
-      console.error("Erreur récupération notifications :", error);
-      Alert.alert("Erreur", "Impossible de récupérer les notifications.");
+    } catch (err) {
+      console.error("❌ Error in handleNotifications:", err);
+      Alert.alert("Erreur", "Impossible de récupérer ou de marquer les notifications.");
     }
   };
 

@@ -914,10 +914,10 @@ export default function DashboardCoachScreen() {
 }
 
 const buildAvatarUrl = (rawUrl?: string) => {
-  const baseUrl = "http://localhost:8080/";
+  const baseUrl = "http://192.168.1.139:8080/";
   if (rawUrl && rawUrl.trim().length > 0) {
     return rawUrl.startsWith("http")
-      ? rawUrl.replace("localhost:8081", "localhost:8080")
+      ? rawUrl.replace("localhost:8081", "http://192.168.1.139:8080")
       : baseUrl + rawUrl;
   }
   return "https://dummyimage.com/40x40/cccccc/ffffff&text=User";

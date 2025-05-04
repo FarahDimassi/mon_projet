@@ -59,7 +59,7 @@ export default function NotificationsScreen() {
       const userId = await getUserIdFromToken();
       const token = await getToken();
       const res = await fetch(
-        `http://192.168.100.135:8080/api/notifications/user/${userId}`,
+        `http://192.168.1.139:8080/api/notifications/user/${userId}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       const data = await res.json();
@@ -270,7 +270,7 @@ export default function NotificationsScreen() {
     try {
       const token = await getToken();
       await fetch(
-        `http://192.168.100.135:8080/api/notifications/${notificationId}/read`,
+        `http://192.168.1.139:8080/api/notifications/${notificationId}/read`,
         {
           method: 'PUT',
           headers: { Authorization: `Bearer ${token}` }

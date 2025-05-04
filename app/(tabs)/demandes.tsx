@@ -34,7 +34,7 @@ async function fetchAllInvitations(): Promise<Invitation[]> {
   const token = await getToken();
   
   // Récupération des demandes de réinitialisation
-  const resetResponse = await fetch("http://192.168.100.135:8080/api/admin/reset-requests", {
+  const resetResponse = await fetch("http://192.168.1.139:8080/api/admin/reset-requests", {
     method: "GET",
     headers: {
       "Content-Type": "application/json",
@@ -47,7 +47,7 @@ async function fetchAllInvitations(): Promise<Invitation[]> {
   }
   
   // Récupération des demandes IA
-  const iaResponse = await fetch("http://192.168.100.135:8080/api/admin/ia-requests", {
+  const iaResponse = await fetch("http://192.168.1.139:8080/api/admin/ia-requests", {
     method: "GET",
     headers: {
       "Content-Type": "application/json",
@@ -69,7 +69,7 @@ async function fetchAllInvitations(): Promise<Invitation[]> {
 // Fonction pour accepter la demande via l'endpoint accept-reset
 async function acceptResetRequest(invitationId: number): Promise<any> {
   const token = await getToken();
-  const response = await fetch(`http://192.168.100.135:8080/api/admin/accept-reset?invitationId=${invitationId}`, {
+  const response = await fetch(`http://192.168.1.139:8080/api/admin/accept-reset?invitationId=${invitationId}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -86,7 +86,7 @@ async function acceptResetRequest(invitationId: number): Promise<any> {
 async function acceptIaRequest(invitationId: number): Promise<void> {
   const token = await getToken();
   const res = await fetch(
-    `http://192.168.100.135:8080/api/admin/ia-requests/${invitationId}/accept`,
+    `http://192.168.1.139:8080/api/admin/ia-requests/${invitationId}/accept`,
     {
       method: "POST",
       headers: {

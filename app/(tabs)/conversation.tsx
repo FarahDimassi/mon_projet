@@ -16,6 +16,7 @@ import {
   StatusBar,
   ActionSheetIOS,
   Alert,
+  Linking,
 } from "react-native";
 import SockJS from "sockjs-client";
 import { Client } from "@stomp/stompjs";
@@ -30,6 +31,7 @@ import { Audio } from "expo-av";
 import { MaterialIcons } from "@expo/vector-icons";
 import { Recording } from "expo-av/build/Audio";
 import * as Notifications from 'expo-notifications';
+import { useRouter } from "expo-router";
 
 // ------------------------------
 // Types pour la liste des contacts et les messages
@@ -55,6 +57,9 @@ interface ChatMessage {
 }
 
 const ChatScreen: React.FC = () => {
+  // Ajout du router pour la navigation vers VideoRoom
+  const router = useRouter();
+
   // ─── Helpers pour générer le fichier RN + MIME ───
 const getFileExtension = (uri: string) =>
   uri.includes('.') ? uri.split('.').pop()!.toLowerCase() : '';
@@ -108,6 +113,8 @@ const guessMime = (ext: string) => {
         shouldShowAlert: true,
         shouldPlaySound: true,
         shouldSetBadge: false,
+        shouldShowBanner: true,
+        shouldShowList: true,
       }),
     });
   
@@ -144,7 +151,7 @@ const guessMime = (ext: string) => {
     const fetchContacts = async () => {
       try {
         // Utilisation de l'endpoint backend pour récupérer les contacts
-        const url = `http://192.168.100.135:8080/api/chat/contacts?userId=${userId}`;
+        const url = `http://192.168.1.139:8080/api/chat/contacts?userId=${userId}`;
         const response = await fetch(url, {
           method: "GET",
           headers: {
@@ -181,7 +188,7 @@ const guessMime = (ext: string) => {
     // 3a) Récupération de l'historique via l'endpoint /api/chat/history/{partnerId}?userId=...
     const fetchHistory = async () => {
       try {
-        const url = `http://192.168.100.135:8080/api/chat/history/${selectedContact.partnerId}?userId=${userId}`;
+        const url = `http://192.168.1.139:8080/api/chat/history/${selectedContact.partnerId}?userId=${userId}`;
         const res = await fetch(url, {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -218,7 +225,7 @@ const guessMime = (ext: string) => {
     };
     const roomId = buildRoomId(userId, selectedContact.partnerId);
 
-    const socket = new SockJS(`http://192.168.100.135:8080/ws?token=${token}`);
+    const socket = new SockJS(`http://192.168.1.139:8080/ws?token=${token}`);
     const stompClient = new Client({
       webSocketFactory: () => socket,
       reconnectDelay: 5000,
@@ -439,7 +446,7 @@ const guessMime = (ext: string) => {
         } as any);
       }
   
-      const res = await fetch('http://192.168.100.135:8080/api/chat/upload/image', {
+      const res = await fetch('http://192.168.1.139:8080/api/chat/upload/image', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
@@ -610,7 +617,7 @@ const guessMime = (ext: string) => {
         } as any);
       }
   
-      const res = await fetch('http://192.168.100.135:8080/api/chat/upload/audio', {
+      const res = await fetch('http://192.168.1.139:8080/api/chat/upload/audio', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
@@ -664,10 +671,39 @@ const guessMime = (ext: string) => {
   };
 
   // ------------------------------
-  // Rendu des messages avec prise en charge des attachements
+  // Rendu des messages avec prise en charge des attachements et des liens Jitsi
   // ------------------------------
-  const renderMessage = (item: ChatMessage) => {
-    // Conteneur de message avec style conditionnel selon l'expéditeur
+const renderMessage = (item: ChatMessage) => {
+  // Vérifier si le message contient un lien d'invitation ou un lien direct Jitsi
+  const isInvitationMessage = item.message && item.message.includes("Invitation à une réunion vidéo:");
+  
+  // Différents formats possibles de liens Jitsi
+  const jitsiPattern = /(https?:\/\/)?(meet\.jit\.si\/[a-zA-Z0-9-_]+)|(https?:\/\/meet\.jit\.si\/[a-zA-Z0-9-_]+)/i;
+  const containsJitsiLink = item.message && jitsiPattern.test(item.message);
+  
+  // Extraire le nom de la salle depuis le message
+  let meetingLink = null;
+  let roomName = null;
+  
+  if ((isInvitationMessage || containsJitsiLink) && item.message) {
+    // Rechercher le lien avec ou sans protocole
+    const fullLinkMatch = item.message.match(jitsiPattern);
+    if (fullLinkMatch) {
+      // Normaliser le lien pour garantir qu'il a un protocole
+      meetingLink = fullLinkMatch[0];
+      if (!meetingLink.startsWith('http')) {
+        meetingLink = 'https://' + meetingLink;
+      }
+      
+      // Extraire le nom de la salle (partie après le dernier /)
+      const parts = meetingLink.split('/');
+      roomName = parts[parts.length - 1];
+      console.log("URL extraite:", meetingLink, "Nom de salle:", roomName);
+    }
+  }
+  
+  // Si le message est un lien brut Jitsi, l'afficher comme un bouton cliquable
+  if (containsJitsiLink && meetingLink) {
     return (
       <View style={[
         styles.messageBubbleContainer,
@@ -676,45 +712,28 @@ const guessMime = (ext: string) => {
         <View style={[
           styles.messageBubble,
           item.isFromMe ? styles.myMessage : styles.theirMessage,
+          styles.linkMessage
         ]}>
-          {/* Contenu du message en fonction du type */}
-          {item.attachmentType === 'image' && item.attachmentUrl ? (
-           <TouchableOpacity onPress={() => {}/* Ouvrir l'image en plein écran */}>
-                          <Image 
-                            source={{ uri: item.attachmentUrl.replace("localhost:8081", "192.168.100.135:8080") }} 
-                            style={styles.attachmentImage} 
-                            resizeMode="cover"
-                          />
-                          <Text style={[
-                            styles.messageText,
-                            item.isFromMe ? styles.myMessageText : styles.theirMessageText,
-                          ]}>
-                            {item.message}
-                          </Text>
-                        </TouchableOpacity>
-          ) : item.attachmentType === 'audio' && item.attachmentUrl ? (
+          <View style={styles.jitsiLinkContainer}>
+            <Ionicons name="videocam" size={20} color="#4CAF50" style={{marginRight: 8}} />
             <TouchableOpacity 
-              style={styles.audioContainer}
-              onPress={() => playAudio(item.attachmentUrl?.replace("localhost:8081", "192.168.100.135:8080") || '')}
+              onPress={() => {
+                if (meetingLink) {
+                  if (Platform.OS === 'web') {
+                    window.open(meetingLink, '_blank');
+                  } else {
+                    Linking.openURL(meetingLink);
+                  }
+                }
+              }}
+              style={styles.linkButtonContainer}
             >
-              <Ionicons name="play-circle" size={24} color={item.isFromMe ? "rgba(155, 0, 0, 0.8)" : "#555"} />
-              <View style={styles.audioInfo}>
-                <Text style={[
-                  styles.messageText,
-                  item.isFromMe ? styles.myMessageText : styles.theirMessageText,
-                ]}>
-                  {item.message}
-                </Text>
-              </View>
+              <Text style={styles.jitsiLink}>Rejoindre la visioconférence</Text>
             </TouchableOpacity>
-          ) : (
-            <Text style={[
-              styles.messageText,
-              item.isFromMe ? styles.myMessageText : styles.theirMessageText,
-            ]}>
-              {item.message}
-            </Text>
-          )}
+          </View>
+          
+          {/* Afficher également l'URL brute comme référence */}
+          <Text style={styles.meetingUrlText}>{item.message}</Text>
         </View>
         
         <Text style={[
@@ -725,7 +744,98 @@ const guessMime = (ext: string) => {
         </Text>
       </View>
     );
-  };
+  }
+  
+  // Le reste du code reste inchangé pour les autres types de messages
+  return (
+    <View style={[
+      styles.messageBubbleContainer,
+      item.isFromMe ? styles.myMessageContainer : styles.theirMessageContainer,
+    ]}>
+      <View style={[
+        styles.messageBubble,
+        item.isFromMe ? styles.myMessage : styles.theirMessage,
+        isInvitationMessage ? styles.invitationMessage : null,
+      ]}>
+        {/* Contenu du message en fonction du type */}
+        {item.attachmentType === 'image' && item.attachmentUrl ? (
+         <TouchableOpacity onPress={() => {}/* Ouvrir l'image en plein écran */}>
+            <Image 
+              source={{ uri: item.attachmentUrl.replace("localhost:8081", "192.168.1.139:8080") }} 
+              style={styles.attachmentImage} 
+              resizeMode="cover"
+            />
+            <Text style={[
+              styles.messageText,
+              item.isFromMe ? styles.myMessageText : styles.theirMessageText,
+            ]}>
+              {item.message}
+            </Text>
+          </TouchableOpacity>
+        ) : item.attachmentType === 'audio' && item.attachmentUrl ? (
+          <TouchableOpacity 
+            style={styles.audioContainer}
+            onPress={() => playAudio(item.attachmentUrl?.replace("localhost:8081", "192.168.1.139:8080") || '')}
+          >
+            <Ionicons name="play-circle" size={24} color={item.isFromMe ? "rgba(155, 0, 0, 0.8)" : "#555"} />
+            <View style={styles.audioInfo}>
+              <Text style={[
+                styles.messageText,
+                item.isFromMe ? styles.myMessageText : styles.theirMessageText,
+              ]}>
+                {item.message}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        ) : isInvitationMessage ? (
+          // Rendre les messages d'invitation avec URL directement cliquable
+          <View style={styles.invitationContainer}>
+            <Ionicons name="videocam" size={24} color={item.isFromMe ? "rgba(155, 0, 0, 0.8)" : "#4CAF50"} style={styles.invitationIcon} />
+            <View style={styles.invitationTextContainer}>
+              <Text style={[
+                styles.messageText,
+                item.isFromMe ? styles.myMessageText : styles.theirMessageText,
+                styles.invitationText
+              ]}>
+                Invitation à une réunion vidéo
+              </Text>
+              {meetingLink && (
+                <TouchableOpacity 
+                  onPress={() => {
+                    if (meetingLink) {
+                      if (Platform.OS === 'web') {
+                        window.open(meetingLink, '_blank');
+                      } else {
+                        Linking.openURL(meetingLink);
+                      }
+                    }
+                  }}
+                  style={styles.linkButtonContainer}
+                >
+                  <Text style={styles.hyperLink}>Cliquez ici pour rejoindre</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        ) : (
+          <Text style={[
+            styles.messageText,
+            item.isFromMe ? styles.myMessageText : styles.theirMessageText,
+          ]}>
+            {item.message}
+          </Text>
+        )}
+      </View>
+      
+      <Text style={[
+        styles.messageTime,
+        item.isFromMe ? styles.myMessageTime : styles.theirMessageTime,
+      ]}>
+        {item.date ? new Date(item.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}
+      </Text>
+    </View>
+  );
+};
 
   // ------------------------------
   // Rendu d'un item (un contact) dans la liste
@@ -734,8 +844,8 @@ const guessMime = (ext: string) => {
     const avatarUrl =
       item.partnerImageUrl && item.partnerImageUrl.trim().length > 0
         ? item.partnerImageUrl.startsWith("http")
-          ? item.partnerImageUrl.replace("localhost:8081", "192.168.100.135:8080")
-          : `http://192.168.100.135:8080/${item.partnerImageUrl}`
+          ? item.partnerImageUrl.replace("localhost:8081", "192.168.1.139:8080")
+          : `http://192.168.1.139:8080/${item.partnerImageUrl}`
         : null;
     const avatarSource = avatarUrl
       ? { uri: avatarUrl }
@@ -762,6 +872,86 @@ const guessMime = (ext: string) => {
   };
 
   const [showAttachmentModal, setShowAttachmentModal] = useState<boolean>(false);
+
+  // ------------------------------
+  // 6) Fonction pour démarrer une visioconférence et partager le lien
+  // ------------------------------
+const startVideoCall = () => {
+  try {
+    if (!client || !selectedContact) {
+      Alert.alert("Erreur", "Impossible de démarrer l'appel vidéo. Veuillez réessayer.");
+      return;
+    }
+    
+    // Générer un nom de salle unique avec timestamp
+    const simpleRoomName = `meeting${userId}${Date.now()}`;
+    const meetingLink = `https://meet.jit.si/${simpleRoomName}`;
+    
+    // Créer le message d'invitation
+    const invitationMessage = {
+      receiverId: selectedContact.partnerId,
+      message: `Invitation à une réunion vidéo: ${meetingLink}`,
+      date: new Date().toISOString(),
+      type: "INVITATION"
+    };
+    
+    // Envoyer l'invitation via WebSocket
+    client.publish({
+      destination: "/app/chat",
+      body: JSON.stringify(invitationMessage),
+    });
+    
+    // Ajouter le message à la conversation locale
+    setChatMessages(prev => [
+      ...prev, 
+      {
+        ...invitationMessage,
+        senderId: Number(userId),
+        isFromMe: true
+      }
+    ]);
+    
+    // Afficher confirmation avec option de rejoindre
+    Alert.alert(
+      "Invitation envoyée", 
+      `Le lien de la réunion a été envoyé à ${selectedContact.partnerName}.`,
+      [
+        { 
+          text: "Rejoindre maintenant", 
+          onPress: async () => {
+            // Ouvrir le lien directement
+            if (Platform.OS === 'web') {
+              window.open(meetingLink, '_blank');
+            } else {
+              // Sur mobile, utiliser Linking
+              try {
+                // Vérifier si l'URL peut être ouverte
+                const canOpen = await Linking.canOpenURL(meetingLink);
+                
+                if (canOpen) {
+                  await Linking.openURL(meetingLink);
+                } else {
+                  Alert.alert(
+                    "Erreur",
+                    "Impossible d'ouvrir le lien de réunion. Veuillez installer l'application Jitsi Meet ou utiliser un navigateur compatible."
+                  );
+                }
+              } catch (error) {
+                console.error("Erreur lors de l'ouverture du lien:", error);
+                Alert.alert("Erreur", "Impossible d'ouvrir le lien de réunion.");
+              }
+            }
+          }
+        },
+        { text: "Plus tard", style: "cancel" }
+      ]
+    );
+    
+  } catch (error) {
+    console.error("Erreur lors de la création de la visioconférence:", error);
+    Alert.alert("Erreur", "Impossible de créer la visioconférence.");
+  }
+};
 
   // ------------------------------
   // Rendu principal
@@ -827,7 +1017,7 @@ const guessMime = (ext: string) => {
                       selectedContact.partnerImageUrl && selectedContact.partnerImageUrl.trim().length > 0
                         ? { uri: selectedContact.partnerImageUrl.startsWith("http")
                             ? selectedContact.partnerImageUrl.replace("localhost:8081", "192.168.1.139:8080")
-                            : `http://192.168.100.135:8080/${selectedContact.partnerImageUrl}`
+                            : `http://192.168.1.139:8080/${selectedContact.partnerImageUrl}`
                           }
                         : require("../../assets/images/profile.jpg")
                     } 
@@ -1338,4 +1528,52 @@ cancelOptionText: {
   textAlign: "center",
   fontFamily: "BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
 },
+  invitationMessage: {
+    backgroundColor: "rgba(225, 235, 255, 0.85)",
+    borderColor: "#2c7be5",
+    borderWidth: 1,
+  },
+  invitationContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  invitationText: {
+    flex: 1,
+    color: "#2c7be5",
+    fontWeight: "500",
+  },
+  invitationIcon: {
+    marginLeft: 6,
+  },
+  invitationTextContainer: {
+    flex: 1,
+    marginLeft: 10,
+  },
+  hyperLink: {
+    color: "#2c7be5",
+    textDecorationLine: "underline",
+    marginTop: 4,
+  },
+  linkMessage: {
+    backgroundColor: "rgba(225, 235, 255, 0.85)",
+    borderColor: "#2c7be5",
+    borderWidth: 1,
+  },
+  jitsiLinkContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  jitsiLink: {
+    color: "#2c7be5",
+    fontWeight: "500",
+  },
+  linkButtonContainer: {
+    flex: 1,
+  },
+  meetingUrlText: {
+    marginTop: 5,
+    color: "#888",
+    fontSize: 12,
+  },
 });

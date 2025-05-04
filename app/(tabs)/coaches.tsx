@@ -344,8 +344,8 @@ export default function Coaches() {
     const avatarUrl = 
       item.photoUrl && item.photoUrl.trim().length > 0
         ? item.photoUrl.startsWith("http")
-          ? item.photoUrl.replace("localhost:8081", "192.168.45.201:8080")
-          : `http://192.168.45.201:8080/${item.photoUrl}`
+          ? item.photoUrl.replace("localhost:8081", "192.168.1.139:8080")
+          : `http://192.168.1.139:8080/${item.photoUrl}`
         : null;
 
     const avatarSource = avatarUrl
@@ -492,8 +492,8 @@ export default function Coaches() {
                       selectedCoach.photoUrl && selectedCoach.photoUrl.trim().length > 0
                         ? {
                             uri: selectedCoach.photoUrl.startsWith("http")
-                              ? selectedCoach.photoUrl.replace("localhost:8081", "192.168.45.201:8080")
-                              : `http://192.168.45.201:8080/${selectedCoach.photoUrl}`
+                              ? selectedCoach.photoUrl.replace("localhost:8081", "192.168.1.139:8080")
+                              : `http://192.168.1.139:8080/${selectedCoach.photoUrl}`
                           }
                         : require("../../assets/images/profile.jpg")
                     } 
@@ -600,8 +600,8 @@ export default function Coaches() {
                       selectedCoach.photoUrl && selectedCoach.photoUrl.trim().length > 0
                         ? {
                             uri: selectedCoach.photoUrl.startsWith("http")
-                              ? selectedCoach.photoUrl.replace("localhost:8081", "192.168.45.201:8080")
-                              : `http://192.168.45.201:8080/${selectedCoach.photoUrl}`
+                              ? selectedCoach.photoUrl.replace("localhost:8081", "192.168.1.139:8080")
+                              : `http://192.168.1.139:8080/${selectedCoach.photoUrl}`
                           }
                         : require("../../assets/images/profile.jpg")
                     } 

@@ -4,7 +4,7 @@ import * as Network from "expo-network";
 import { Platform } from "react-native";
 import { getToken } from "./authService";
 
-let API_URL = "http://192.168.1.16:8080"; 
+let API_URL = "http://192.168.1.139:8080"; 
 
 export async function requestResetInvitation(userId: number, message: string): Promise<any> {
     try {

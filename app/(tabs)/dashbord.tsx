@@ -157,7 +157,7 @@ console.log("Form data:", formData);
         `Progression : ${progressPercent}%`
       );
       const token = await getToken();
-      const res = await fetch("http://192.168.100.135:8080/api/progress", {
+      const res = await fetch("http://192.168.1.139:8080/api/progress", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
