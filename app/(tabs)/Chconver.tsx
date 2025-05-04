@@ -952,69 +952,92 @@ const uploadAndSendImage = async (uri: string, webFile?: File) => {
             onPress={() => {
               // Démarrer un appel général à tous les abonnés
               try {
-                // Vérifier si le client WebSocket est connecté
-                if (!client) {
-                  Alert.alert("Erreur de connexion", "Impossible d'envoyer les invitations, veuillez réessayer.");
-                  return;
-                }
-                
                 // Générer un nom de salle unique avec timestamp
                 const simpleRoomName = `meeting${userId}${Date.now()}`;
                 const meetingLink = `https://meet.jit.si/${simpleRoomName}`;
                 
-                let sentCount = 0;
-                
-                // Envoyer le lien à tous les contacts de manière fiable
-                contacts.forEach(contact => {
-                  if (client) {
+                // Créer une fonction pour envoyer les invitations
+                const sendGlobalInvitations = (stompClient: Client) => {
+                  let sentCount = 0;
+                  
+                  // Envoyer le lien à tous les contacts de manière fiable
+                  contacts.forEach(contact => {
                     const invitationMessage = {
                       receiverId: contact.partnerId,
-                      message: `Invitation à une réunion vidéo: ${meetingLink}`,
+                      message: `${meetingLink}`,
                       date: new Date().toISOString(),
                       type: "INVITATION"  // Capital pour être cohérent avec le backend
                     };
                     
-                    client.publish({
+                    stompClient.publish({
                       destination: "/app/chat",
                       body: JSON.stringify(invitationMessage),
                     });
                     sentCount++;
-                  }
-                });
+                  });
+                  
+                  // Afficher confirmation avec nombre d'abonnés
+                  Alert.alert(
+                    "Invitation envoyée", 
+                    `Le lien de la réunion a été envoyé à ${sentCount} contact(s).`,
+                    [{ 
+                      text: "Rejoindre maintenant", 
+                      onPress: () => {
+                        console.log("Navigation vers VideoRoom avec roomName:", simpleRoomName);
+                        
+                        // Utiliser directement le navigateur externe pour plus de fiabilité
+                        if (Platform.OS === 'web') {
+                          window.open(meetingLink, '_blank');
+                        } else {
+                          Linking.openURL(meetingLink);
+                        }
+                      }
+                    }]
+                  );
+                };
                 
-                // Afficher confirmation avec nombre d'abonnés
-                Alert.alert(
-                  "Invitation envoyée", 
-                  `Le lien de la réunion a été envoyé à ${sentCount} contact(s).`,
-                  [{ 
-                    text: "Rejoindre maintenant", 
-                    onPress: () => {
-                      console.log("Navigation vers VideoRoom avec roomName:", simpleRoomName);
-                      
-                      // Utiliser directement le navigateur externe pour plus de fiabilité
-                      if (Platform.OS === 'web') {
-                        window.open(meetingLink, '_blank');
-                      } else {
-                        Linking.openURL(meetingLink);
+                // Vérifier si un client WebSocket existe déjà
+                if (client && client.connected) {
+                  // Si oui, l'utiliser directement
+                  sendGlobalInvitations(client);
+                } else {
+                  // Sinon, créer un nouveau client
+                  const newToken = getToken();
+                  if (!newToken) {
+                    Alert.alert("Erreur d'authentification", "Veuillez vous reconnecter et réessayer.");
+                    return;
+                  }
+                  
+                  // Création d'une nouvelle connexion WebSocket asynchrone
+                  (async () => {
+                    try {
+                      const token = await getToken();
+                      if (!token) {
+                        Alert.alert("Erreur d'authentification", "Veuillez vous reconnecter et réessayer.");
+                        return;
                       }
                       
-                      // Ne pas utiliser la redirection interne qui peut causer des problèmes
-                      // Commenté pour éviter l'erreur de navigation
-                      /*
-                      router.push({
-                        pathname: '/VideoRoom',
-                        params: {
-                          sessionId: Date.now().toString(),
-                          userId: userId,
-                          isHost: "true",
-                          roomName: simpleRoomName,
-                          directLink: meetingLink
-                        }
+                      const socket = new SockJS(`http://192.168.1.139:8080/ws?token=${token}`);
+                      const newStompClient = new Client({
+                        webSocketFactory: () => socket,
+                        reconnectDelay: 5000,
+                        debug: (str) => console.log(str),
                       });
-                      */
+                      
+                      // Configuration de la connexion
+                      newStompClient.onConnect = () => {
+                        console.log("Nouvelle connexion établie, envoi des invitations...");
+                        sendGlobalInvitations(newStompClient);
+                      };
+                      
+                      // Activation du client
+                      newStompClient.activate();
+                    } catch (e) {
+                      console.error("Erreur lors de la création de la connexion:", e);
+                      Alert.alert("Erreur de connexion", "Impossible de se connecter au serveur de discussion.");
                     }
-                  }]
-                );
+                  })();
+                }
               } catch (e) {
                 console.error("Erreur lors du démarrage de l'appel vidéo:", e);
                 Alert.alert("Erreur", "Impossible de démarrer l'appel vidéo.");
