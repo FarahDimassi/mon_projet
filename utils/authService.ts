@@ -1817,3 +1817,33 @@ export async function updateUserCoach(
     }
   );
 }
+export async function getIaCoachedUsers(): Promise<User[]> {
+  const token = await getToken();
+  const res = await fetch(`${API_URL}/api/admin/users/ia`, {
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  if (!res.ok) {
+    throw new Error(`Erreur ${res.status} lors de la récupération IA-users`);
+  }
+  return res.json();
+}
+
+/**
+ * Récupère tous les users coachés par un coach réel.
+ */
+export async function getRealCoachedUsers(): Promise<User[]> {
+  const token = await getToken();
+  const res = await fetch(`${API_URL}/api/admin/users/real`, {
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  if (!res.ok) {
+    throw new Error(`Erreur ${res.status} lors de la récupération real-users`);
+  }
+  return res.json();
+}

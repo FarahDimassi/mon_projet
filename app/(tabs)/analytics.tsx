@@ -15,6 +15,8 @@ import {
   getUsersProgress,
   getProgressChartData,
   getUserIdFromToken,
+  getIaCoachedUsers,     
+  getRealCoachedUsers,
 } from "../../utils/authService";
 import FooterAdmin from "@/components/FooterAdmin";
 import ProtectedRoute from "@/utils/ProtectedRoute";
@@ -35,6 +37,9 @@ export default function AnalyticsPage() {
   const [activeTab, setActiveTab] = useState<"day" | "week" | "month">("day");
   const [userPerDay, setUserPerDay] = useState<number[]>([]);
   const [users, setUsers] = useState<any[]>([]);
+  const [iaUsers, setIaUsers]     = useState<any[]>([]);
+  const [realUsers, setRealUsers] = useState<any[]>([]);
+  const [error, setError]         = useState<string | null>(null);
   const [userStats, setUserStats] = useState({
     totalUsers: 0,
     usersPerYear: 0,
@@ -69,6 +74,16 @@ export default function AnalyticsPage() {
         console.error("❌ Erreur stats :", error);
       }
     })();
+  }, []);
+  // ➋ Chargement des listes IA vs Réel
+  useEffect(() => {
+    getIaCoachedUsers()
+      .then(setIaUsers)
+      .catch(err => setError(err.message));
+
+    getRealCoachedUsers()
+      .then(setRealUsers)
+      .catch(err => setError(err.message));
   }, []);
 
   // 2️⃣ Tous les utilisateurs
@@ -142,6 +157,11 @@ export default function AnalyticsPage() {
   const coachCount = users.filter(
     (u) => u.role.trim().toLowerCase() === "coach"
   ).length;
+    // ➌ pourcentage de comptes de rôle "Coach"
+    const coachPercentage = totalUsers > 0
+    ? Math.round((userCount / totalUsers) * 100)
+    : 0;
+
 
   const renderTabButton = (
     title: string,
@@ -229,59 +249,130 @@ export default function AnalyticsPage() {
             style={styles.chart}
           />
         </View>
-
-        {/* Croissance des utilisateurs */}
+       {/* Répartition des utilisateurs par type */}
         <View style={styles.chartContainer}>
-          <Text style={styles.chartTitle}>Croissance des utilisateurs</Text>
+          <Text style={styles.chartTitle}>Répartition IA vs Réel vs Coachs</Text>
+          
+          {/* Affichage des légendes */}
           <View style={styles.legendContainer}>
             <View style={styles.legendItem}>
-              <View style={[styles.legendColor, { backgroundColor: "rgba(195, 0, 0, 0.2)" }]} />
-              <Text style={styles.legendText}>2025</Text>
-            </View>
-            <View style={styles.legendItem}>
               <View style={[styles.legendColor, { backgroundColor: "rgba(195, 0, 0, 0.5)" }]} />
-              <Text style={styles.legendText}>2026</Text>
+              <Text style={styles.legendText}>CoachType IA</Text>
             </View>
             <View style={styles.legendItem}>
               <View style={[styles.legendColor, { backgroundColor: "rgba(195, 0, 0, 0.8)" }]} />
-              <Text style={styles.legendText}>2027</Text>
+              <Text style={styles.legendText}>CoachType Reel</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendColor, { backgroundColor: "rgba(195, 0, 0, 0.2)" }]} />
+              <Text style={styles.legendText}>Users</Text>
             </View>
           </View>
-          <PieChart
-            data={[
-              {
-                name: "2025",
-                population: totalUsers * 0.3,
-                color: "rgba(195, 0, 0, 0.2)",
-                legendFontColor: "#333",
-              },
-              {
-                name: "2026",
-                population: totalUsers * 0.4,
-                color: "rgba(195, 0, 0, 0.5)",
-                legendFontColor: "#333",
-              },
-              {
-                name: "2027",
-                population: totalUsers * 0.5,
-                color: "rgba(195, 0, 0, 0.8)",
-                legendFontColor: "#333",
-              },
-            ]}
-            width={screenWidth - 40}
-            height={180}
-            chartConfig={{
-              backgroundGradientFrom: "#fff",
-              backgroundGradientTo: "#fff",
-              decimalPlaces: 0,
-              color: () => `rgba(0, 123, 255, 1)`,
-              labelColor: () => `rgba(0, 0, 0, 1)`,
-            }}
-            accessor="population"
-            backgroundColor="transparent"
-            paddingLeft="10"
-            style={styles.chart}
-          />
+          
+          {/* Affichage éventuel d'erreur */}
+          {iaUsers.length === 0 && realUsers.length === 0 && userCount === 0 ? (
+            <Text style={styles.errorText}>Chargement des données...</Text>
+          ) : (
+            <PieChart
+              data={[
+                {
+                  name: "IA",
+                  population: iaUsers.length,
+                  color: "rgba(195, 0, 0, 0.5)",
+                  legendFontColor: "#333",
+                },
+                {
+                  name: "Reel",
+                  population: realUsers.length,
+                  color: "rgba(195, 0, 0, 0.8)",
+                  legendFontColor: "#333",
+                },
+                {
+                  name: "Users",
+                  population: userCount,
+                  color: "rgba(195, 0, 0, 0.2)",
+                  legendFontColor: "#333",
+                },
+              ]}
+              width={screenWidth - 40}
+              height={180}
+              chartConfig={{
+                backgroundGradientFrom: "#fff",
+                backgroundGradientTo: "#fff",
+                decimalPlaces: 0,
+                color: () => `rgba(0, 123, 255, 1)`,
+                labelColor: () => `rgba(0, 0, 0, 1)`,
+              }}
+              accessor="population"
+              backgroundColor="transparent"
+              paddingLeft="10"
+              style={styles.chart}
+            />
+          )}
+          
+          {/* Affichage du pourcentage de coachs */}
+        
+          {/* Affichage des statistiques détaillées */}
+          <View style={styles.statsInfoContainer}>
+            {iaUsers.length + realUsers.length + userCount > 0 && (
+              <>
+                <View style={styles.statsRow}>
+                  <View style={styles.statItem}>
+                    <Text style={styles.statNumber}>{iaUsers.length}</Text>
+                    <Text style={styles.statText}>Users IA</Text>
+                  </View>
+                  <View style={styles.statItem}>
+                    <Text style={styles.statNumber}>{realUsers.length}</Text>
+                    <Text style={styles.statText}>Users Réel</Text>
+                  </View>
+                  <View style={styles.statItem}>
+                    <Text style={styles.statNumber}>{userCount}</Text>
+                    <Text style={styles.statText}>Users</Text>
+                  </View>
+                </View>
+                <View style={styles.percentageBar}>
+                  <View 
+                    style={[
+                      styles.percentageFill, 
+                      { 
+                        width: `${Math.round((iaUsers.length / (iaUsers.length + realUsers.length + userCount)) * 100)}%`,
+                        backgroundColor: "rgba(195, 0, 0, 0.5)" 
+                      }
+                    ]} 
+                  />
+                  <View 
+                    style={[
+                      styles.percentageFill, 
+                      { 
+                        width: `${Math.round((realUsers.length / (iaUsers.length + realUsers.length + userCount)) * 100)}%`,
+                        backgroundColor: "rgba(195, 0, 0, 0.8)" 
+                      }
+                    ]} 
+                  />
+                  <View 
+                    style={[
+                      styles.percentageFill, 
+                      { 
+                        width: `${Math.round((userCount / (iaUsers.length + realUsers.length + userCount)) * 100)}%`,
+                        backgroundColor: "rgba(195, 0, 0, 0.2)" 
+                      }
+                    ]} 
+                  />
+                </View>
+                <View style={styles.percentageLabels}>
+                  <Text style={styles.percentageText}>
+                    {Math.round((iaUsers.length / (iaUsers.length + realUsers.length + userCount)) * 100)}%
+                  </Text>
+                  <Text style={styles.percentageText}>
+                    {Math.round((realUsers.length / (iaUsers.length + realUsers.length + userCount)) * 100)}%
+                  </Text>
+                  <Text style={styles.percentageText}>
+                    {Math.round((userCount / (iaUsers.length + realUsers.length + userCount)) * 100)}%
+                  </Text>
+                </View>
+              </>
+            )}
+          </View>
         </View>
 
         {/* Ma progression - PARTIE MODIFIÉE */}
@@ -486,6 +577,12 @@ const styles = StyleSheet.create({
   mainContainer: {
     flex: 1,
     backgroundColor: "#f5f7fa",
+  },
+  errorText: {
+    fontSize: 14,
+    color: "red",
+    textAlign: "center",
+    marginTop: 10,
   },
   container: {
     flex: 1,
@@ -820,5 +917,45 @@ const styles = StyleSheet.create({
     width: 1,
     backgroundColor: "#e0e0e0",
     marginHorizontal: 10,
-  }
+  },
+  statsInfoContainer: {
+    marginTop: 10,
+  },
+  statsRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 10,
+  },
+  statItem: {
+    alignItems: "center",
+    flex: 1,
+  },
+  statNumber: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#333",
+  },
+  statText: {
+    fontSize: 12,
+    color: "#666",
+  },
+  percentageBar: {
+    flexDirection: "row",
+    height: 10,
+    borderRadius: 5,
+    overflow: "hidden",
+    backgroundColor: "#e0e0e0",
+    marginBottom: 10,
+  },
+  percentageFill: {
+    height: "100%",
+  },
+  percentageLabels: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  percentageText: {
+    fontSize: 12,
+    color: "#666",
+  },
 });

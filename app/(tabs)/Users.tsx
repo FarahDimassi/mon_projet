@@ -270,8 +270,8 @@ export default function UsersPage() {
   };
   
   const handleEditUser = (user: User) => {
-    setEditEmail(user.email);
-    setEditUsername(user.username);
+    //setEditEmail(user.email);
+    //setEditUsername(user.username);
     setEditActive(user.active ?? false);
     setSelectedUser(user);
     setSelectedUserId(user.id);
@@ -464,9 +464,11 @@ export default function UsersPage() {
                     <TouchableOpacity style={styles.actionButton} onPress={() => handleViewUser(item.id)}>
                       <FontAwesome5 name="eye" size={16} color="#fff" />
                     </TouchableOpacity>
-                    <TouchableOpacity style={[styles.actionButton, styles.editButton]} onPress={() => handleEditUser(item)}>
-                      <FontAwesome5 name="edit" size={16} color="#fff" />
-                    </TouchableOpacity>
+                    {item.role === "Coach" && (
+                      <TouchableOpacity style={[styles.actionButton, styles.editButton]} onPress={() => handleEditUser(item)}>
+                        <FontAwesome5 name="edit" size={16} color="#fff" />
+                      </TouchableOpacity>
+                    )}
                     <TouchableOpacity style={[styles.actionButton, styles.deleteButton]} onPress={() => confirmDeleteUser(item.id)}>
                       <FontAwesome5 name="trash-alt" size={16} color="#fff" />
                     </TouchableOpacity>
@@ -620,7 +622,7 @@ export default function UsersPage() {
             </View>
 
             <View style={styles.formContainer}>
-              <View style={styles.inputGroup}>
+             {/*  <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Nom d'utilisateur</Text>
                 <View style={styles.inputContainer}>
                   <FontAwesome5 name="user" size={18} color="#888" style={styles.inputIcon} />
@@ -631,9 +633,9 @@ export default function UsersPage() {
                     placeholder="Nom d'utilisateur"
                   />
                 </View>
-              </View>
+              </View> */}
 
-              <View style={styles.inputGroup}>
+              {/* <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Email</Text>
                 <View style={styles.inputContainer}>
                   <FontAwesome5 name="envelope" size={18} color="#888" style={styles.inputIcon} />
@@ -645,7 +647,7 @@ export default function UsersPage() {
                     keyboardType="email-address"
                   />
                 </View>
-              </View>
+              </View> */}
 
               {selectedUser?.role === "Coach" && (
                 <View style={styles.toggleContainer}>
