@@ -15,6 +15,7 @@ import {
 // @ts-ignore
 import { useRouter } from "expo-router";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
+import { Check, AlertCircle, X, Star, ArrowRight, Bell , Award, Coffee} from "react-native-feather";
 import {
   getNotificationsByUserId,
   getToken,
@@ -80,51 +81,88 @@ export default function UserPage() {
   const loadDiaryTicks = async () => {
     if (!userId) return;
     try {
-      const diaryKey = `diaryTicks_${userId}`;
+      // AJOUT : on récupère le jour courant pour la clé
+      const day = currentDayPlan.day;
+  
+      // MODIF : la clé inclut désormais le jour
+      const diaryKey = `diaryTicks_${userId}_day${day}`;
+  
+      // MODIF : on lit depuis la nouvelle clé
       const storedTicks = await AsyncStorage.getItem(diaryKey);
+  
       if (storedTicks) {
         const parsed = JSON.parse(storedTicks);
+  
+        // MODIF : lecture des valeurs tick pour ce jour seulement
         setMealCompletion(parsed.mealCompletion || {
           breakfast: false,
-          lunch: false,
-          dinner: false,
-          snacks: false,
+          lunch:     false,
+          dinner:    false,
+          snacks:    false,
         });
         setActivityCompletion(parsed.activityCompletion || false);
-        setStepsCompletion(parsed.stepsCompletion || false);
+        setStepsCompletion(parsed.stepsCompletion       || false);
         setDistanceCompletion(parsed.distanceCompletion || false);
         setCaloriesCompletion(parsed.caloriesCompletion || false);
-        setWaterCompletion(parsed.waterCompletion || false);
+        setWaterCompletion(parsed.waterCompletion         || false);
+  
       } else {
-        // Initialiser les ticks par défaut s'ils n'existent pas
+        // AJOUT : on initialise un objet de ticks par défaut pour ce jour
         const defaultTicks = {
-          mealCompletion: { breakfast: false, lunch: false, dinner: false, snacks: false },
+          mealCompletion: {
+            breakfast: false,
+            lunch:     false,
+            dinner:    false,
+            snacks:    false,
+          },
           activityCompletion: false,
-          stepsCompletion: false,
+          stepsCompletion:    false,
           distanceCompletion: false,
           caloriesCompletion: false,
-          waterCompletion: false,
+          waterCompletion:    false,
         };
+  
+        // MODIF : on stocke ces defaults sous la clé spécifique au jour
         await AsyncStorage.setItem(diaryKey, JSON.stringify(defaultTicks));
+  
+        // AJOUT : et on injecte immédiatement ces valeurs dans le state
+        setMealCompletion(defaultTicks.mealCompletion);
+        setActivityCompletion(defaultTicks.activityCompletion);
+        setStepsCompletion(defaultTicks.stepsCompletion);
+        setDistanceCompletion(defaultTicks.distanceCompletion);
+        setCaloriesCompletion(defaultTicks.caloriesCompletion);
+        setWaterCompletion(defaultTicks.waterCompletion);
       }
     } catch (error) {
       console.error("Erreur lors du chargement des diary ticks :", error);
     }
   };
-
+  
   // Mettre à jour les ticks pour l'utilisateur courant
   const updateDiaryTicks = async (updatedValues: Partial<any>) => {
-    if (!userId) return;
+    if (!userId || !currentDayPlan) return;
+  
+    // AJOUT : on récupère le jour courant pour la clé
+    const day = currentDayPlan.day;
+  
+    // MODIF : la clé inclut désormais le jour
+    const diaryKey = `diaryTicks_${userId}_day${day}`;
+  
     try {
-      const diaryKey = `diaryTicks_${userId}`;
+      // MODIF : on lit l’état courant pour ce jour
       const stored = await AsyncStorage.getItem(diaryKey);
-      let currentTicks = stored ? JSON.parse(stored) : {};
-      currentTicks = { ...currentTicks, ...updatedValues };
-      await AsyncStorage.setItem(diaryKey, JSON.stringify(currentTicks));
+      const current = stored ? JSON.parse(stored) : {};
+  
+      // MODIF : on fusionne avec les nouvelles valeurs
+      const merged = { ...current, ...updatedValues };
+  
+      // MODIF : on enregistre sous la clé spécifique au jour
+      await AsyncStorage.setItem(diaryKey, JSON.stringify(merged));
     } catch (error) {
       console.error("Erreur lors de la mise à jour des diaryTicks :", error);
     }
   };
+  
 
   // Stocker la progression journalière pour l'utilisateur courant
   const storeDiaryProgress = async () => {
@@ -298,15 +336,24 @@ export default function UserPage() {
     fetchScannedProducts();
   }, [userId, currentDay]);
 
-  // Charger les ticks au démarrage de l'application
   useEffect(() => {
-    if (userId && currentDayPlan) {
-      loadDiaryTicks();
-      console.log("Ticks chargés pour l'utilisateur", userId);
-    }
-  }, [userId, currentDayPlan]);
+    if (!userId || !currentDayPlan) return;
   
-  // --------------------------------- FIN PERSISTANCE TICKS -----------------------------------
+    // Réinitialisation visuelle immédiate
+    setMealCompletion({ breakfast:false, lunch:false, dinner:false, snacks:false });
+    setActivityCompletion(false);
+    setStepsCompletion(false);
+    setDistanceCompletion(false);
+    setCaloriesCompletion(false);
+    setWaterCompletion(false);
+  
+    // Recharge des ticks pour le jour courant
+    loadDiaryTicks();
+  }, [
+    userId,
+    currentDayPlan  // ← on surveille l’objet, pas sa propriété .day
+  ]);
+
 
   // Charger éventuellement les plats scannés stockés (version offline)
   useEffect(() => {
@@ -581,51 +628,49 @@ export default function UserPage() {
     <ProtectedRoute>
       <NavbarIA />
 
-    {/*   
-      <Modal visible={modalVisible} animationType="fade" transparent={true}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <TouchableOpacity style={styles.closeButton} onPress={() => setModalVisible(false)}>
-              <Ionicons name="close" size={24} color="black" />
-            </TouchableOpacity>
-            <Text style={styles.modalTitle}>📢 Notifications</Text>
-            <FlatList
-              data={notifications ?? []}
-              keyExtractor={(item) => item.id?.toString() ?? Math.random().toString()}
-              renderItem={({ item }) => (
-                <View style={styles.notificationContainer}>
-                  <Text style={styles.notificationText}>🔔 {item.message}</Text>
-                </View>
-              )}
-              ListEmptyComponent={() => (
-                <Text style={styles.noNotifications}>Aucune notification disponible.</Text>
-              )}
-            />
-          </View>
-        </View>
-      </Modal> */}
 
       {/* Modale de détail d'un repas */}
       <Modal
-        visible={mealModalVisible}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setMealModalVisible(false)}
+  visible={mealModalVisible}
+  animationType="fade"
+  transparent={true}
+  onRequestClose={() => setMealModalVisible(false)}
+>
+  <View style={styles.modalOverlay}>
+  <View style={styles.modalContainer}>
+    {/* Icône flottante en haut - conditionnelle selon le type de repas */}
+    <View style={[styles.iconWrapper, selectedMealType === "Breakfast" ? styles.breakfastIconWrapper : null]}>
+      {selectedMealType === "Breakfast" ? (
+        <Coffee width={24} height={24} color="#FFFFFF" />
+      ) : selectedMealType === "Snacks" ? (
+        <Ionicons name="ice-cream-outline" size={24} color="#FFFFFF" />
+      ) : (
+        <MaterialIcons name="restaurant" size={24} color="#FFFFFF" />
+      )}
+    </View>
+      
+      {/* Titre avec étoile */}
+      <View style={styles.titleContainer}>
+        <Star width={20} height={20} color="#F59E0B" strokeWidth={2} fill="#F59E0B" />
+        <Text style={styles.modalTitle}>{selectedMealType}</Text>
+      </View>
+      
+      {/* Contenu */}
+      <View style={styles.contentBox}>
+        <Text style={styles.modalContent}>{selectedMealDetail}</Text>
+      </View>
+      
+      {/* Bouton */}
+      <TouchableOpacity
+        style={styles.modalCloseButton}
+        onPress={() => setMealModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <Text style={styles.modalTitle}>{selectedMealType}</Text>
-            <Text style={styles.modalContent}>{selectedMealDetail}</Text>
-            <TouchableOpacity
-              style={styles.modalCloseButton}
-              onPress={() => setMealModalVisible(false)}
-            >
-              <Text style={styles.modalCloseButtonText}>Close</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
+        <Text style={styles.modalCloseButtonText}>Continuer</Text>
+        <ArrowRight width={18} height={18} color="#FFFFFF" />
+      </TouchableOpacity>
+    </View>
+  </View>
+</Modal>
       {/* Modale d'intro / Sélection de coach */}
       <Modal visible={showIntroModal} animationType="slide" transparent={true}>
         <ImageBackground source={require("../assets/white.jpg")} style={styles.introModalOverlay}>
@@ -886,6 +931,12 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 15,
     borderBottomRightRadius: 15,
   },
+  breakfastIconWrapper: {
+  backgroundColor: '#rgba(195, 0, 0, 0.90)', 
+  shadowColor: 'rgba(195, 0, 0, 0.70)',
+  justifyContent: "center",
+  alignItems: "center",
+  },
   logoutButton: {
     backgroundColor: "#f0f0f0",
     padding: 10,
@@ -964,7 +1015,7 @@ const styles = StyleSheet.create({
   },
   infoText: { fontSize: 16, color: "#333", marginVertical: 2 },
   bold: { fontWeight: "bold" },
-  modalOverlay: {
+ /*  modalOverlay: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
@@ -1004,7 +1055,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#fff",
     fontWeight: "bold",
-  },
+  }, */
   closeButton: { position: "absolute", top: 10, right: 10, padding: 5 },
   notificationText: { fontSize: 16, paddingVertical: 5, textAlign: "left", width: "100%" },
   noNotifications: { fontSize: 14, color: "#999", textAlign: "center", marginTop: 10 },
@@ -1104,5 +1155,92 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "bold",
+  },
+  modalOverlay: {
+    flex: 1,
+   backgroundColor: 'rrgba(0, 0, 0, 0.60)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    width: '100%',
+    maxWidth: 400,
+    paddingHorizontal: 20,
+    paddingTop: 40,
+    paddingBottom: 24,
+    alignItems: 'center',
+    position: 'relative',
+    elevation: 5,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+  },
+  iconWrapper: {
+    position: 'absolute',
+    top: -25,
+    backgroundColor: 'rgba(195, 0, 0, 0.90)',
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: 'rgba(195, 0, 0, 0.70)',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  titleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#1F2937',
+    marginLeft: 10,
+    letterSpacing: -0.5,
+  },
+  contentBox: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 16,
+    padding: 20,
+    width: '100%',
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  modalContent: {
+    fontSize: 16,
+    lineHeight: 26,
+    color: '#4B5563',
+    textAlign: 'left',
+  },
+  modalCloseButton: {
+    backgroundColor: 'rgba(195, 0, 0, 0.70)',
+    borderRadius: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+    shadowColor: 'rgba(195, 0, 0, 0.70)',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  modalCloseButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+    marginRight: 10,
   },
 });

@@ -33,7 +33,7 @@ export default function RootLayout() {
       <Stack.Screen name="index" options={{ title: "Accueil" }} />
       <Stack.Screen name="AuthScreen" />
       <Stack.Screen name="user" options={{ title: "Espace Utilisateur" }} />
-      <Stack.Screen name="admin" options={{ title: "Espace Admin" }} />
+      {/* <Stack.Screen name="admin" options={{ title: "Espace Admin" }} /> */}
       <Stack.Screen name="check-role" options={{ title: "Vérification Rôle" }} />
       <Stack.Screen name="NotificationsScreen" options={{ title: "Notifications" }} />
       <Stack.Screen name="WelcomeScreen" options={{ title: "Welcome" }} />

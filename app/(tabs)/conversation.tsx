@@ -1039,7 +1039,24 @@ const startVideoCall = () => {
                 style={styles.chatList}
                 data={chatMessages}
                 keyExtractor={(item, index) => String(item.id ?? index)}
-                renderItem={({ item }) => renderMessage(item)}
+                renderItem={({ item, index }) => {
+                  // Vérifie si c'est le premier message ou s'il y a un changement de jour
+                  const showDate = index === 0 || (index > 0 && 
+                    new Date(item.date).toDateString() !== new Date(chatMessages[index - 1].date).toDateString());
+                  
+                  return (
+                    <>
+                      {showDate && (
+                        <View style={styles.dateContainer}>
+                          <Text style={styles.dateText}>
+                            {new Date(item.date).toLocaleDateString()}
+                          </Text>
+                        </View>
+                      )}
+                      {renderMessage(item)}
+                    </>
+                  );
+                }}
                 inverted={false}
                 contentContainerStyle={styles.chatListContent}
                 onContentSizeChange={() => {
@@ -1575,5 +1592,18 @@ cancelOptionText: {
     marginTop: 5,
     color: "#888",
     fontSize: 12,
+  },
+  dateContainer: {
+    alignItems: 'center',
+    marginVertical: 12,
+  },
+  dateText: {
+    fontSize: 12,
+    color: '#888',
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
+    overflow: 'hidden',
   },
 });

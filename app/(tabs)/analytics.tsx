@@ -183,7 +183,16 @@ export default function AnalyticsPage() {
     const user = users.find(user => user.id === userId);
     return user ? user.username : "Inconnu";
   };
+// ─── Répartition brute ───
+/* const repartitionRaw = [
+  { name: "IA",    population: iaUsers.length,  color: "rgba(195,0,0,0.5)", legendFontColor: "#333" },
+  { name: "Réel",  population: realUsers.length, color: "rgba(195,0,0,0.8)", legendFontColor: "#333" },
+  { name: "Users", population: userCount,        color: "rgba(195,0,0,0.2)", legendFontColor: "#333" },
+];
 
+// ─── On enlève les valeurs à 0 ───
+const repartitionData = repartitionRaw.filter(item => item.population > 0);
+ */
   return (
     <View style={styles.mainContainer}>
       <NavbarAdmin />

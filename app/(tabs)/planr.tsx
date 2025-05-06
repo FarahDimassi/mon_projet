@@ -237,7 +237,7 @@ const fetchMealPlanForDate = async (date: string, coachId: number) => {
     setMealPlan(planData ? [planData] : []);
     if (planData && planData.id !== lastPlanId) {
       setLastPlanId(planData.id);
-      await Notifications.scheduleNotificationAsync({
+    /*   await Notifications.scheduleNotificationAsync({
         content: {
           title: `🏋️ Nouveau plan de ${selectedCoach?.username}`,
           android: {
@@ -252,7 +252,7 @@ const fetchMealPlanForDate = async (date: string, coachId: number) => {
           },
         },
         trigger: null,
-      });
+      }); */
     }
     // 2. Charge les ticks pour remplir checkedItems
     await loadTicks(

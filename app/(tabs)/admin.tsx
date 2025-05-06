@@ -2,8 +2,8 @@ import React, { useEffect, useState } from "react";
 import { View, Text, Button, StyleSheet, Dimensions, ScrollView, TouchableOpacity, Image } from "react-native";
 // @ts-ignore
 import { router } from "expo-router";
-import { logout, getAllUsers, getToken, getDashboardStats } from "../utils/authService";
-import ProtectedRoute from "../utils/ProtectedRoute";
+import { logout, getAllUsers, getToken, getDashboardStats } from "../../utils/authService";
+import ProtectedRoute from "../../utils/ProtectedRoute";
 import { LineChart } from "react-native-chart-kit";
 // @ts-ignore
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";

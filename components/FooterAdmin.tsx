@@ -8,8 +8,9 @@ const DashboardFooter = () => {
   const router = useRouter();
   const pathname = usePathname();
 
+
   const handleNavigation = (screen: string) => {
-    router.push(screen);
+    router.push(screen as any);
   };
 
   return (

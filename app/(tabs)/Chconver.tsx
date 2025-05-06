@@ -1096,9 +1096,9 @@ const uploadAndSendImage = async (uri: string, webFile?: File) => {
           </View>
 
           {/* Bouton d'appel vidéo */}
-          <TouchableOpacity style={styles.videoCallButton} onPress={startVideoCall}>
+       {/*    <TouchableOpacity style={styles.videoCallButton} onPress={startVideoCall}>
             <Ionicons name="videocam" size={24} color="#fff" />
-          </TouchableOpacity>
+          </TouchableOpacity> */}
         </View>
 
         {/* — Corps (liste) — */}
@@ -1113,7 +1113,24 @@ const uploadAndSendImage = async (uri: string, webFile?: File) => {
           style={styles.chatList}
           data={chatMessages}
           keyExtractor={(item, index) => String(item.id ?? index)}
-          renderItem={({ item }) => renderMessage(item)}
+          renderItem={({ item, index }) => {
+            // Vérifie si c'est le premier message ou s'il y a un changement de jour
+            const showDate = index === 0 || (index > 0 && 
+              new Date(item.date).toDateString() !== new Date(chatMessages[index - 1].date).toDateString());
+            
+            return (
+              <>
+                {showDate && (
+                  <View style={styles.dateContainer}>
+                    <Text style={styles.dateText}>
+                      {new Date(item.date).toLocaleDateString()}
+                    </Text>
+                  </View>
+                )}
+                {renderMessage(item)}
+              </>
+            );
+          }}
           inverted={false}
           contentContainerStyle={styles.chatListContent}
           onContentSizeChange={() => {
@@ -1691,5 +1708,18 @@ videoCallButton: {
     color: '#4CAF50',
     textDecorationLine: 'underline',
     fontWeight: '500',
+  },
+  dateContainer: {
+    alignItems: 'center',
+    marginVertical: 12,
+  },
+  dateText: {
+    fontSize: 12,
+    color: '#888',
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
+    overflow: 'hidden',
   },
 });
