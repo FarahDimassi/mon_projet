@@ -4,6 +4,14 @@ import * as Network from "expo-network";
 import { Platform } from "react-native";
 import { getToken } from "./authService";
 
+// Define the Invitation interface
+interface Invitation {
+  id: number;
+  status: string;
+  createdAt: string | number | Date;
+  // Add other properties as needed based on your API response
+}
+
 let API_URL = "http://192.168.1.139:8080"; 
 
 export async function requestResetInvitation(userId: number, message: string): Promise<any> {
@@ -71,4 +79,23 @@ export async function requestResetInvitation(userId: number, message: string): P
     }
     // si votre endpoint ne renvoie pas de JSON, vous pouvez juste return;
     return;
+  }
+  export async function rejectInvitation(
+    invitationId: number
+  ): Promise<Invitation> {
+    const token = await getToken();
+    const res = await fetch(
+      `${API_URL}/api/coach/reject/${invitationId}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+    if (!res.ok) {
+      throw new Error(`Erreur ${res.status} lors du refus de l’invitation`);
+    }
+    return res.json();
   }

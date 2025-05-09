@@ -8,7 +8,7 @@ import {
 } from "react-native";
 // @ts-ignore
 import { useRouter, usePathname } from "expo-router";
-import { FontAwesome5, MaterialIcons } from "@expo/vector-icons";
+import { FontAwesome5, Ionicons, MaterialIcons } from "@expo/vector-icons";
 
 export default function Footer() {
   const router = useRouter();
@@ -51,7 +51,7 @@ export default function Footer() {
         style={styles.addButton}
         onPress={() => setModalVisible(true)}
       >
-        <MaterialIcons name="add" size={30} color="white" />
+        <Ionicons name="scan" size={30} color="white" />
       </TouchableOpacity>
 
       <TouchableOpacity 
@@ -208,4 +208,5 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     fontSize: 14,
   },
+  
 });

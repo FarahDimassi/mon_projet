@@ -29,7 +29,9 @@ export default function TabsLayout() {
       <Tabs.Screen name="AnalyticsCoach" />
       <Tabs.Screen name="VideoCallsScreen" options={{ title: "Appels Vidéo" }} />
       <Tabs.Screen name="VideoInviteScreen" options={{ title: "Invitations Vidéo" }} />
-     <Tabs.Screen name="admin" options={{ title: "admin" }} /> 
+      <Tabs.Screen name="admin" options={{ title: "admin" }} /> 
+      <Tabs.Screen name="DailyChallenge" options={{ title: "Défis Quotidiens" }} />
+      <Tabs.Screen name="DefisIA" options={{ title: "Défis Quotidiens IA" }} />
     </Tabs>
   );
 }

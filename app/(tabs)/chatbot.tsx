@@ -1,10 +1,12 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { View, Text, TextInput, Button, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import axios from "axios";
 import Footer from "../../components/Footer";
 import ProtectedRoute from "../../utils/ProtectedRoute";
 import NavbarIA from "@/components/NavbarIA";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getUserIdFromToken } from "@/utils/authService";
 
 const GEMINI_API_KEY = "AIzaSyAv-z7qo8OT1q1z90VqKlHQ2TgRsB5br0w"; // ⚠️ Remplace par ta clé API
 const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
@@ -19,45 +21,43 @@ export default function Chatbot() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [userInput, setUserInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [userId, setUserId] = useState<number | null>(null);
 
-  /* const sendMessage = async () => {
-    if (!userInput.trim()) return;
-
-    const newMessages: Message[] = [...messages, { role: "user", content: userInput }];
-    setMessages(newMessages);
-    setUserInput("");
-    setLoading(true);
-
-    try {
-      const response = await axios.post(
-        GEMINI_API_URL,
-        {
-          contents: [{ parts: [{ text: userInput }] }]
-        },
-        {
-          headers: {
-            "Content-Type": "application/json"
+  // Effet pour récupérer l'ID utilisateur et charger l'historique des messages
+  useEffect(() => {
+    const loadUserAndMessages = async () => {
+      try {
+        // Récupère l'ID utilisateur depuis le token JWT
+        const id = await getUserIdFromToken();
+        setUserId(id);
+        
+        if (id) {
+          // Charge l'historique des messages spécifique à cet utilisateur
+          const savedMessages = await AsyncStorage.getItem(`chatbot_history_${id}`);
+          if (savedMessages) {
+            setMessages(JSON.parse(savedMessages));
           }
         }
-      );
-
-      if (response.data && response.data.candidates) {
-        const botReply: Message = {
-          role: "assistant",
-          content: response.data.candidates[0].content.parts[0].text,
-        };
-        setMessages([...newMessages, botReply]);
-      } else {
-        throw new Error("Réponse invalide de l'API Gemini.");
+      } catch (error) {
+        console.error("Erreur lors du chargement des messages:", error);
       }
-    } catch (error) {
-      console.error("Erreur lors de la requête Gemini :", error);
-      setMessages([...newMessages, { role: "assistant", content: "❌ Erreur avec l'API Gemini. Réessaie plus tard." }]);
-    }
+    };
 
-    setLoading(false);
-  }; */
- const sendMessage = async () => {
+    loadUserAndMessages();
+  }, []);
+
+  // Fonction pour sauvegarder les messages dans le localStorage
+  const saveMessages = async (newMessages: Message[]) => {
+    if (userId) {
+      try {
+        await AsyncStorage.setItem(`chatbot_history_${userId}`, JSON.stringify(newMessages));
+      } catch (error) {
+        console.error("Erreur lors de la sauvegarde des messages:", error);
+      }
+    }
+  };
+
+  const sendMessage = async () => {
     if (!userInput.trim()) return;
 
     const newMessages: Message[] = [
@@ -65,13 +65,16 @@ export default function Chatbot() {
       { role: "user", content: userInput }
     ];
     setMessages(newMessages);
+    // Sauvegarde immédiate après ajout du message utilisateur
+    saveMessages(newMessages);
+    
     setUserInput("");
     setLoading(true);
 
     // 1️⃣ Détection des salutations (hi, hello, bonjour, etc.)
     const greetingRegex = /^\s*(hi|hello|hey|bonjour|salut|salutations)[\s!?.]*$/i;
     if (greetingRegex.test(userInput)) {
-      setMessages([
+      const updatedMessages = [
         ...newMessages,
         {
           role: "assistant",
@@ -79,7 +82,10 @@ export default function Chatbot() {
             "👋 Bonjour ! Je suis ton assistant Nutrition & Sport. " +
             "Pose-moi une question sur la nutrition ou le sport !"
         }
-      ]);
+      ];
+      setMessages(updatedMessages);
+      // Sauvegarde après ajout de la réponse de l'assistant
+      saveMessages(updatedMessages);
       setLoading(false);
       return;
     }
@@ -100,19 +106,23 @@ export default function Chatbot() {
           role: "assistant",
           content: response.data.candidates[0].content.parts[0].text.trim()
         };
-        setMessages([...newMessages, botReply]);
+        const updatedMessages = [...newMessages, botReply];
+        setMessages(updatedMessages);
+        // Sauvegarde après ajout de la réponse de l'assistant
+        saveMessages(updatedMessages);
       } else {
         throw new Error("Réponse invalide de l'API Gemini.");
       }
     } catch (error) {
       console.error("Erreur lors de la requête Gemini :", error);
-      setMessages([
-        ...newMessages,
-        {
-          role: "assistant",
-          content: "❌ Erreur avec l'API Gemini. Réessaie plus tard."
-        }
-      ]);
+      const errorMessage: Message = {
+        role: "assistant",
+        content: "❌ Erreur avec l'API Gemini. Réessaie plus tard."
+      };
+      const errorMessages: Message[] = [...newMessages, errorMessage];
+      setMessages(errorMessages);
+      // Sauvegarde même en cas d'erreur
+      saveMessages(errorMessages);
     }
 
     setLoading(false);
@@ -202,7 +212,6 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     color: "black",
-    outlineStyle: "none", // Supprime le contour sur le web
     borderWidth: 0, // Supprime la bordure
     backgroundColor: "transparent", // Assurez-vous qu'il n'y a pas d'effet visuel de fond
   }
@@ -212,5 +221,5 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 10,
     marginLeft: 10,
-  },
+  }
 });

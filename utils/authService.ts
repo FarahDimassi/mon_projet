@@ -1847,3 +1847,39 @@ export async function getRealCoachedUsers(): Promise<User[]> {
   }
   return res.json();
 }
+
+/**
+ * Vérifie si un coach a atteint 5 abonnés et lui décerne un badge dans ce cas
+ * @param coachId L'ID du coach à vérifier
+ * @returns true si le badge a été décerné, false sinon
+ */
+export const checkAndAwardSubscriberBadge = async (coachId: number | string): Promise<boolean> => {
+  try {
+    const token = await getToken();
+    if (!token) {
+      throw new Error("Token d'authentification non disponible");
+    }
+
+    // Appel de l'endpoint backend existant qui vérifie et attribue le badge
+    const response = await fetch(
+      `${API_URL}/api/coach/${coachId}/check-subscriber-badge`, 
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        }
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Erreur lors de la vérification du badge : ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.awarded === true;
+  } catch (error) {
+    console.error("Erreur lors de la vérification des abonnés pour le badge :", error);
+    return false;
+  }
+};

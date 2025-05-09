@@ -16,6 +16,7 @@ import {
 import { useRouter } from "expo-router";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { Check, AlertCircle, X, Star, ArrowRight, Bell , Award, Coffee} from "react-native-feather";
+import Toast from 'react-native-toast-message'; // Importation du composant Toast
 import {
   getNotificationsByUserId,
   getToken,
@@ -29,6 +30,7 @@ import ProtectedRoute from "../utils/ProtectedRoute";
 import Footer from "../components/Footer";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import NavbarIA from "@/components/NavbarIA";
+import { Icon } from "react-native-paper";
 
 interface Notification {
   isRead: any;
@@ -67,6 +69,7 @@ export default function UserPage() {
   const [caloriesCompletion, setCaloriesCompletion] = useState(false);
   const [waterCompletion, setWaterCompletion] = useState(false);
   const [remainingPlanCalories, setRemainingPlanCalories] = useState<number>(0);
+  const [showData, setShowData] = useState(true); // Ajout de l'état pour contrôler l'affichage des plats scannés
 
   // <-- Les plats scannés récupérés depuis l'API
   const [scannedDishes, setScannedDishes] = useState<{ productName: string; calories: number }[]>([]);
@@ -563,9 +566,27 @@ export default function UserPage() {
       try {
         await updateDiaryTicks({ mealCompletion: newState });
         console.log(`✓ Statut de ${mealType} sauvegardé: ${newState[mealType]}`, userId);
+        
+        // Vérifier si tous les repas sont maintenant cochés
+        checkAllMealsCompleted(newState);
       } catch (error) {
         console.error("Erreur lors de la sauvegarde du tick:", error);
       }
+  };
+
+  // Fonction qui vérifie si tous les repas sont cochés et affiche un toast
+  const checkAllMealsCompleted = (mealState: typeof mealCompletion) => {
+    // Vérifie si tous les repas sont cochés
+    if (mealState.breakfast && mealState.lunch && mealState.dinner && mealState.snacks) {
+      // Afficher directement le toast de félicitations
+      Toast.show({
+        type: "success",
+        text1: "Félicitations !",
+        text2: "Bravo ! Tu as terminé ton plan alimentaire d'aujourd'hui !",
+        position: "bottom",
+        visibilityTime: 5000
+      });
+    }
   };
 
   // Cocher / Décocher l'activité
@@ -665,12 +686,12 @@ export default function UserPage() {
         style={styles.modalCloseButton}
         onPress={() => setMealModalVisible(false)}
       >
-        <Text style={styles.modalCloseButtonText}>Continuer</Text>
-        <ArrowRight width={18} height={18} color="#FFFFFF" />
+        <Text style={styles.modalCloseButtonText}>Fermer</Text>
+      <Icon source="close" size={24} color="#FFFFFF" />
       </TouchableOpacity>
     </View>
   </View>
-</Modal>
+</Modal>  
       {/* Modale d'intro / Sélection de coach */}
       <Modal visible={showIntroModal} animationType="slide" transparent={true}>
         <ImageBackground source={require("../assets/white.jpg")} style={styles.introModalOverlay}>
@@ -694,12 +715,59 @@ export default function UserPage() {
           </View>
         </ImageBackground>
       </Modal>
+        {/* Modale pour le scanner d'aliments */}
+        <Modal visible={modalVisible} animationType="fade" transparent={true}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContainer, styles.scanModalContainer]}>
+            <View style={styles.scanIconHeader}>
+              <View style={styles.scanIconCircle}>
+                <Ionicons name="scan" size={32} color="#3B82F6" />
+              </View>
+            </View>
+            <Text style={styles.scanModalTitle}>📷 Ajouter un Aliment</Text>
+            <Text style={styles.scanModalSubtitle}>Choisissez une méthode pour scanner vos aliments</Text>
+
+            {/* Food Scanner */}
+            <TouchableOpacity
+              style={styles.optionButton}
+              onPress={() => {
+                setModalVisible(false);
+                router.push("/FoodScannerScreen");
+              }}
+            >
+              <MaterialIcons name="camera-alt" size={24} color="white" />
+              <Text style={styles.optionText}>Food Scanner</Text>
+            </TouchableOpacity>
+
+            {/* Code à Barres */}
+            <TouchableOpacity
+              style={[styles.optionButton, styles.barcodeButton]}
+              onPress={() => {
+                setModalVisible(false);
+                router.push("/BarcodeScannerScreen");
+              }}
+            >
+              <MaterialIcons name="qr-code-scanner" size={24} color="white" />
+              <Text style={styles.optionText}>Code à Barres</Text>
+            </TouchableOpacity>
+
+            {/* Bouton Fermer */}
+            <TouchableOpacity
+              style={styles.scanCloseButton}
+              onPress={() => setModalVisible(false)}
+            >
+              <Text style={styles.scanCloseText}>Annuler</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* Corps principal */}
       <ScrollView style={styles.container}>
-        <View style={styles.headerContent}>
-          <Text style={styles.todayTitle}>Today</Text>
-        </View>
+      <View style={styles.headerContent}>
+  <Text style={styles.todayTitle}>Plan du jour</Text>
+  <Text style={styles.headerSubtitle}>Cochez chaque élément lorsque vous le complétez</Text>
+</View>
 
         {currentDayPlan ? (
           <View style={styles.diaryContainer}>
@@ -847,7 +915,7 @@ export default function UserPage() {
             </View>
 
             {/* Eau */}
-            <View style={[styles.section, { marginBottom: 81 }]}>
+            <View style={[styles.section, { marginBottom: 5 }]}>
               <Image source={require("../assets/images/water.png")} style={styles.icon} />
               <Text style={styles.infoText}>
                 <Text style={styles.bold}>Water (l): </Text>
@@ -863,50 +931,111 @@ export default function UserPage() {
             </View>
           </View>
         ) : (
-          <ActivityIndicator size="large" color="#28A745" />
+          <View style={styles.noPlanContainer}>
+            <View style={styles.emptyIconContainer}>
+              <Ionicons name="calendar-outline" size={50} color="#6B7280" />
+            </View>
+            <Text style={styles.emptyTitleText}>Aucun plan disponible</Text>
+            <Text style={styles.emptySubtitleText}>
+              Vous n'avez pas encore de plan alimentaire pour aujourd'hui
+            </Text>
+            <TouchableOpacity style={styles.createPlanButton} onPress={handleCalendar}>
+              <Ionicons name="add-circle-outline" size={18} color="#3B82F6" style={styles.scanButtonIcon} />
+              <Text style={styles.createPlanButtonText}>Voir le calendrier</Text>
+            </TouchableOpacity>
+          </View>
         )}
 
-        {/* Liste des plats scannés */}
-        <View style={styles.scannedDishesContainer}>
-          <Text style={styles.scannedDishesTitle}>Derniers Plats Scannés</Text>
-          {scannedDishes && scannedDishes.length > 0 ? (
-            <>
-              <FlatList
-                data={scannedDishes}
-                keyExtractor={(item, index) => index.toString()}
-                renderItem={({ item }) => (
-                  <View style={styles.scannedDishItem}>
-                    <Text style={styles.scannedDishText}>
-                      {item.productName} - {item.calories} kcal
-                    </Text>
-                  </View>
-                )}
-              />
-              {(() => {
-                const totalScanned = scannedDishes.reduce((acc, meal) => acc + (meal.calories || 0), 0);
-                if (totalScanned > 600) {
-                  return (
-                    <View style={styles.alertContainer}>
-                      <Ionicons name="warning-outline" size={20} color="red" style={styles.alertIcon} />
-                      <Text style={styles.alertText}>
-                        Vous avez atteint la limite de 600 calories.
-                      </Text>
-                    </View>
-                  );
-                }
-                return null;
-              })()}
-              {/* <TouchableOpacity style={styles.clearButton} onPress={handleClearScannedDishes}>
-                <Text style={styles.clearButtonText}>Vider la liste scannée</Text>
-              </TouchableOpacity> */}
-            </>
-          ) : (
-            <Text style={styles.scannedDishText}>Aucun plat scanné.</Text>
-          )}
-        </View>
+    {/* Liste des plats scannés */}
+<View style={styles.scannedDishesContainer}>
+  <View style={styles.scannedDishesTitleContainer}>
+    <View style={styles.titleWithIcon}>
+      <Ionicons name="scan-outline" size={24} color="#3B82F6" style={styles.scanIcon} />
+      <Text style={styles.scannedDishesTitle}>Plats Scannés</Text>
+    </View>
+    <TouchableOpacity 
+      style={styles.toggleButton}
+      onPress={() => setShowData(!showData)}
+    >
+      <Text style={styles.toggleButtonText}>
+        {showData ? "Voir vide" : "Voir données"}
+      </Text>
+    </TouchableOpacity>
+  </View>
+  
+  {showData && scannedDishes && scannedDishes.length > 0 ? (
+    <>
+      <FlatList
+        data={scannedDishes}
+        keyExtractor={(item, index) => index.toString()}
+        renderItem={({ item }) => (
+          <View style={styles.scannedDishItem}>
+            <View style={styles.dishIconContainer}>
+              <Ionicons name="restaurant-outline" size={18} color="#3B82F6" />
+            </View>
+            <View style={styles.dishTextContainer}>
+              <Text style={styles.dishName}>{item.productName}</Text>
+              <View style={styles.caloriesBadge}>
+                <Text style={styles.caloriesText}>{item.calories} kcal</Text>
+              </View>
+            </View>
+          </View>
+        )}
+        ItemSeparatorComponent={() => <View style={styles.separator} />}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.listContent}
+      />
+      
+      {/* Compteur de calories total */}
+      <View style={styles.totalCaloriesContainer}>
+        <Text style={styles.totalCaloriesLabel}>Total calories:</Text>
+        <Text style={[
+          styles.totalCaloriesValue, 
+          scannedDishes.reduce((acc, meal) => acc + (meal.calories || 0), 0) > 600 
+            ? styles.totalCaloriesExceeded 
+            : styles.totalCaloriesNormal
+        ]}>
+          {scannedDishes.reduce((acc, meal) => acc + (meal.calories || 0), 0)} kcal
+        </Text>
+      </View>
+      
+      {(() => {
+        const totalScanned = scannedDishes.reduce((acc, meal) => acc + (meal.calories || 0), 0);
+        if (totalScanned > 600) {
+          return (
+            <View style={styles.alertContainer}>
+              <Ionicons name="warning-outline" size={22} color="#EF4444" style={styles.alertIcon} />
+              <Text style={styles.alertText}>
+                Vous avez dépassé la limite recommandée de 600 calories.
+              </Text>
+            </View>
+          );
+        }
+        return null;
+      })()}
+    </>
+  ) : (
+    <View style={styles.emptyContainer}>
+      <View style={styles.emptyIconContainer}>
+        <Ionicons name="scan-outline" size={40} color="#6B7280" />
+      </View>
+      <Text style={styles.emptyTitleText}>Aucun plat scanné</Text>
+      <Text style={styles.emptySubtitleText}>Scannez vos repas pour suivre vos calories</Text>
+      
+     
+      <TouchableOpacity style={styles.scanButton} onPress={() => setModalVisible(true)}>
+        <Ionicons name="add-circle-outline" size={18} color="#3B82F6" style={styles.scanButtonIcon} />
+        <Text style={styles.scanButtonText}>Scanner un plat</Text>
+      </TouchableOpacity>
+    </View>
+  )}
+</View>
       </ScrollView>
 
       <Footer />
+      
+      {/* Composant Toast pour afficher les messages */}
+      <Toast />
     </ProtectedRoute>
   );
 }
@@ -1067,43 +1196,6 @@ const styles = StyleSheet.create({
   },
   markAsRead: { fontSize: 14, color: "blue", fontWeight: "bold" },
   tickContainer: { marginLeft: 10 },
-  scannedDishesContainer: {
-    margin: 20,
-    padding: 10,
-    backgroundColor: "#fff",
-    borderRadius: 10,
-    marginBottom: 80,
-    marginTop: -70,
-  },
-  scannedDishesTitle: { fontSize: 18, fontWeight: "bold", marginBottom: 10 },
-  scannedDishItem: { paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: "#eee" },
-  scannedDishText: { fontSize: 16, color: "#333" },
-  clearButton: {
-    backgroundColor: "#dc3545",
-    padding: 10,
-    marginTop: 10,
-    borderRadius: 8,
-    alignItems: "center",
-  },
-  clearButtonText: { color: "#fff", fontWeight: "bold" },
-  alertContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(255,0,0,0.1)",
-    padding: 10,
-    marginTop: 10,
-    borderRadius: 8,
-    flexWrap: "wrap",
-    width: "100%",
-  },
-  alertIcon: { marginRight: 8 },
-  alertText: {
-    color: "red",
-    fontSize: 14,
-    fontWeight: "bold",
-    flex: 1,
-    flexWrap: "wrap",
-  },
   introModalOverlay: {
     flex: 1,
     width: "100%",
@@ -1200,6 +1292,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 16,
   },
+  headerSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 5,
+    textAlign: 'center',
+  },
   modalTitle: {
     fontSize: 22,
     fontWeight: '800',
@@ -1243,4 +1341,288 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginRight: 10,
   },
+
+// Ajoutez/remplacez ces styles dans l'objet styles
+// Ajoutez/modifiez ces styles dans votre objet styles
+scannedDishesContainer: {
+  margin: 20,
+  padding: 16,
+  backgroundColor: '#fff',
+  borderRadius: 16,
+  marginBottom: 80,
+  marginTop: 20,
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.1,
+  shadowRadius: 8,
+  elevation: 4,
+  borderWidth: 1,
+  borderColor: '#f0f0f0',
+},
+scannedDishesTitleContainer: {
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "space-between",
+  marginBottom: 8, // Réduit de 16 à 8
+  paddingBottom: 8, // Réduit de 12 à 8
+  borderBottomWidth: 1,
+  borderBottomColor: '#f0f0f0',
+},
+titleWithIcon: {
+  flexDirection: 'row',
+  alignItems: 'center',
+},
+scanIcon: {
+  marginRight: 10,
+},
+scannedDishesTitle: {
+  fontSize: 16, // Réduit de 18 à 16 
+  fontWeight: "700",
+  color: "#333",
+},
+toggleButton: {
+  backgroundColor: "#EBF5FF",
+  paddingVertical: 4, // Réduit de 6 à 4
+  paddingHorizontal: 10,
+  borderRadius: 16,
+},
+toggleButtonText: {
+  color: "#3B82F6",
+  fontSize: 12, // Réduit de 14 à 12
+  fontWeight: "500",
+},
+scannedDishItem: {
+  flexDirection: "row",
+  alignItems: "center",
+  paddingVertical: 12,
+},
+dishIconContainer: {
+  width: 36,
+  height: 36,
+  justifyContent: "center",
+  alignItems: "center",
+  backgroundColor: "#EBF5FF", // Bleu très clair
+  borderRadius: 8,
+  marginRight: 12,
+},
+dishTextContainer: {
+  flex: 1,
+  flexDirection: "row",
+  justifyContent: "space-between",
+  alignItems: "center",
+},
+dishName: {
+  fontSize: 16,
+  fontWeight: "500",
+  color: "#333",
+  flex: 1,
+  marginRight: 8,
+},
+caloriesBadge: {
+  backgroundColor: "#EBF5FF",
+  paddingVertical: 6,
+  paddingHorizontal: 10,
+  borderRadius: 16,
+},
+caloriesText: {
+  color: "#3B82F6",
+  fontWeight: "600",
+  fontSize: 14,
+},
+separator: {
+  height: 1,
+  backgroundColor: "#f0f0f0",
+},
+listContent: {
+  paddingVertical: 8,
+},
+totalCaloriesContainer: {
+  flexDirection: "row",
+  justifyContent: "space-between",
+  alignItems: "center",
+  backgroundColor: "#F9FAFB",
+  marginTop: 16,
+  padding: 12,
+  borderRadius: 8,
+},
+totalCaloriesLabel: {
+  fontSize: 15,
+  fontWeight: "500",
+  color: "#374151",
+},
+totalCaloriesValue: {
+  fontSize: 16,
+  fontWeight: "700",
+},
+totalCaloriesNormal: {
+  color: "#10B981", // Vert
+},
+totalCaloriesExceeded: {
+  color: "#EF4444", // Rouge
+},
+alertContainer: {
+  flexDirection: "row",
+  alignItems: "center",
+  backgroundColor: "#FEF2F2", // Rouge très clair
+  padding: 12,
+  marginTop: 12,
+  borderRadius: 8,
+},
+alertIcon: {
+  marginRight: 10,
+},
+alertText: {
+  color: "#EF4444",
+  fontSize: 14,
+  fontWeight: "500",
+  flex: 1,
+},
+clearButton: {
+  backgroundColor: "#F3F4F6",
+  padding: 12,
+  borderRadius: 8,
+  alignItems: "center",
+  marginTop: 16,
+},
+clearButtonText: {
+  color: "#4B5563",
+  fontSize: 15,
+  fontWeight: "600",
+},
+emptyContainer: {
+  alignItems: "center",
+  justifyContent: "center",
+  paddingVertical: 30,
+  paddingHorizontal: 16,
+},
+emptyIconContainer: {
+  width: 70,
+  height: 70,
+  borderRadius: 35,
+  backgroundColor: "#F3F4F6",
+  justifyContent: "center",
+  alignItems: "center",
+  marginBottom: 16,
+},
+emptyTitleText: {
+  fontSize: 18,
+  fontWeight: "600",
+  color: "#4B5563",
+  marginBottom: 8,
+},
+emptySubtitleText: {
+  fontSize: 14,
+  color: "#9CA3AF",
+  textAlign: "center",
+  marginBottom: 20,
+},
+scanButton: {
+  flexDirection: "row",
+  alignItems: "center",
+  backgroundColor: "#EBF5FF",
+  paddingVertical: 10,
+  paddingHorizontal: 16,
+  borderRadius: 8,
+},
+scanButtonIcon: {
+  marginRight: 8,
+},
+scanButtonText: {
+  color: "#3B82F6",
+  fontSize: 15,
+  fontWeight: "600",
+},
+noPlanContainer: {
+  alignItems: "center",
+  justifyContent: "center",
+  paddingVertical: 30,
+  paddingHorizontal: 16,
+},
+createPlanButton: {
+  flexDirection: "row",
+  alignItems: "center",
+  backgroundColor: "#EBF5FF",
+  paddingVertical: 10,
+  paddingHorizontal: 16,
+  borderRadius: 8,
+  marginTop: 20,
+},
+createPlanButtonText: {
+  color: "#3B82F6",
+  fontSize: 15,
+  fontWeight: "600",
+},
+scanModalContainer: {
+  paddingTop: 50,
+  paddingBottom: 30,
+},
+scanIconHeader: {
+  position: 'absolute',
+  top: -30,
+  alignItems: 'center',
+  width: '100%',
+},
+scanIconCircle: {
+  width: 60,
+  height: 60,
+  borderRadius: 30,
+  backgroundColor: '#EBF5FF',
+  justifyContent: 'center',
+  alignItems: 'center',
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.1,
+  shadowRadius: 4,
+  elevation: 3,
+  borderWidth: 3,
+  borderColor: '#fff',
+},
+scanModalTitle: {
+  fontSize: 20,
+  fontWeight: '700',
+  color: '#1F2937',
+  marginBottom: 8,
+  textAlign: 'center',
+},
+scanModalSubtitle: {
+  fontSize: 14,
+  color: '#6B7280',
+  marginBottom: 24,
+  textAlign: 'center',
+},
+optionButton: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  backgroundColor: '#3B82F6',
+  padding: 15,
+  borderRadius: 12,
+  marginVertical: 8,
+  width: '100%',
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 1 },
+  shadowOpacity: 0.1,
+  shadowRadius: 3,
+  elevation: 2,
+},
+barcodeButton: {
+  backgroundColor: '#4F46E5', // Légèrement différent pour visuellement distinguer
+},
+optionText: {
+  color: 'white',
+  fontSize: 16,
+  fontWeight: '600',
+  marginLeft: 12,
+},
+scanCloseButton: {
+  marginTop: 16,
+  paddingVertical: 12,
+  paddingHorizontal: 20,
+  borderRadius: 8,
+},
+scanCloseText: {
+  color: '#6B7280',
+  fontSize: 15,
+  fontWeight: '500',
+  textAlign: 'center',
+},
 });

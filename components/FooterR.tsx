@@ -51,7 +51,7 @@ const FooterR = () => {
         style={styles.addButton}
         onPress={() => setModalVisible(true)}
       >
-        <MaterialIcons name="add" size={30} color="white" />
+           <Ionicons name="scan" size={30} color="white" />
       </TouchableOpacity>
       
       <TouchableOpacity

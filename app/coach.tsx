@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -40,6 +40,7 @@ import { FontAwesome5, Feather, Ionicons, MaterialIcons } from "@expo/vector-ico
 import NavbarCoach from "@/components/NavbarCoach";
 import * as Notifications from 'expo-notifications';
 import Toast from "react-native-toast-message";
+import { rejectInvitation } from "@/utils/invitationService";
 
 interface Invitation {
   id: number;
@@ -49,6 +50,7 @@ interface Invitation {
     photoUrl?: string;
   };
   status: string;
+  createdAt: string | number | Date;
 }
 
 interface User {
@@ -62,7 +64,91 @@ function getLocalDateString(): string {
   // Utiliser toLocaleDateString avec le paramètre "en-CA"
   return new Date().toLocaleDateString("en-CA");
 }
+/**
+ * Essaie de convertir plusieurs formats de createdAt
+ * - Date native
+ * - number (timestamp ms)
+ * - ISO-string (YYYY-MM-DDThh:mm:ss…)
+ * - time-only "HH:mm:ss(.SSS…)"
+ */
+function parseInvitationDate(
+  raw: string | number | Date | null | undefined
+): Date | null {
+  // Afficher la valeur brute pour le débogage
+  console.log("parseInvitationDate input:", raw, "type:", typeof raw);
+  
+  if (!raw) return null;
 
+  try {
+    // 1) Si déjà Date
+    if (raw instanceof Date) {
+      return isNaN(raw.getTime()) ? null : raw;
+    }
+
+    // 2) Si timestamp
+    if (typeof raw === "number") {
+      const d = new Date(raw);
+      console.log("Date from number:", d);
+      return isNaN(d.getTime()) ? null : d;
+    }
+
+    // 3) Si string
+    if (typeof raw === "string") {
+      let s = raw.trim();
+      
+      // Si la chaîne est numérique, on la traite comme un timestamp
+      if (/^\d+$/.test(s)) {
+        const timestamp = parseInt(s, 10);
+        const d = new Date(timestamp);
+        console.log("Date from numeric string:", d);
+        return isNaN(d.getTime()) ? null : d;
+      }
+
+      // time-only "HH:mm:ss(.SSS…)" → on préfixe par today
+      if (/^\d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(s)) {
+        const today = new Date().toISOString().split("T")[0];
+        s = `${today}T${s}`;
+      }
+
+      // espace → T pour être ISO
+      if (!s.includes("T") && /\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/.test(s)) {
+        s = s.replace(" ", "T");
+      }
+
+      const d = new Date(s);
+      console.log("Date from string:", d);
+      return isNaN(d.getTime()) ? null : d;
+    }
+  } catch (e) {
+    console.error("Erreur dans parseInvitationDate:", e);
+  }
+
+  console.log("parseInvitationDate: Non parsable, retourne null");
+  return null;
+}
+
+/**
+ * Formate un Date (ou null) en “il y a X”
+ */
+function formatRelativeTime(date: Date | null): string {
+  if (!date) return "il y a un instant";
+
+  const now = Date.now();
+  const then = date.getTime();
+  const sec  = Math.floor((now - then) / 1000);
+
+  if (sec < 60) return "il y a quelques secondes";
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `il y a ${min} minute${min>1?"s":""}`;
+  const hr  = Math.floor(min / 60);
+  if (hr < 24) return `il y a ${hr} heure${hr>1?"s":""}`;
+  const d   = Math.floor(hr / 24);
+  if (d < 30) return `il y a ${d} jour${d>1?"s":""}`;
+  const mo  = Math.floor(d / 30);
+  if (mo < 12) return `il y a ${mo} mois`;
+  const y   = Math.floor(mo / 12);
+  return `il y a ${y} an${y>1?"s":""}`;
+}
 export default function CoachDashboard() {
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [subscribers, setSubscribers] = useState<User[]>([]);
@@ -301,6 +387,31 @@ const handleAccept = async (invitationId: number) => {
         ).values()
       );
       setSubscribers(freshSubscribers);
+      
+      // Vérifier si le coach a atteint 5 abonnés et lui décerner un badge si c'est le cas
+      const badgeAwarded = await import("../utils/authService").then(module => 
+        module.checkAndAwardSubscriberBadge(coachId)
+      );
+      
+      if (badgeAwarded) {
+        // Afficher une notification à l'utilisateur
+        Toast.show({
+          type: "success",
+          text1: "🏆 Félicitations !",
+          text2: "Vous avez atteint 5 abonnés et reçu le badge 'Club des 5' !",
+          position: "top",
+          visibilityTime: 4000,
+        });
+        
+        // Afficher une alerte plus visible
+        setTimeout(() => {
+          Alert.alert(
+            "🏆 Badge débloqué !",
+            "Félicitations ! Vous avez atteint 5 abonnés et reçu le badge 'Club des 5'. Consultez vos badges dans la section notifications.",
+            [{ text: "Super !", style: "default" }]
+          );
+        }, 500);
+      }
     }
 
     /* 4.  mémoriser l’ID accepté (si tu tiens à le garder) */
@@ -318,6 +429,29 @@ const handleAccept = async (invitationId: number) => {
     });
   }
 };
+const handleRefuse = useCallback(async (invId: number) => {
+  try {
+    // 1. Appel API
+    await rejectInvitation(invId);
+
+    // 2. Mise à jour locale : on enlève l’invitation refusée
+    setInvitations((prev) =>
+      prev.filter((inv) => inv.id !== invId)
+    );
+
+    // 3. Feedback utilisateur
+    Toast.show({
+      type: 'success',
+      text1: 'Invitation refusée',
+    });
+  } catch (err: any) {
+    console.error(err);
+    Alert.alert(
+      'Erreur',
+      err.message || 'Impossible de refuser l’invitation.'
+    );
+  }
+}, [setInvitations]);
 
   const openChatWithUser = async (targetUserId: number) => {
     try {
@@ -462,21 +596,62 @@ useEffect(() => {
               data={invitations}
               keyExtractor={(item) => item.id.toString()}
               renderItem={({ item }) => (
-                <View style={styles.invitationCard}>
-                  <View style={styles.invitationInfo}>
-                    <Image 
-                      source={{ uri: buildAvatarUrl(item.sender.photoUrl) }}
-                      style={styles.invitationAvatar}
-                    />
-                    <Text style={styles.invitationUserName}>{item.sender.username}</Text>
-                  </View>
-                  <TouchableOpacity 
-                    style={styles.acceptButton} 
-                    onPress={() => handleAccept(item.id)}
-                  >
-                    <Text style={styles.acceptButtonText}>Accepter</Text>
-                  </TouchableOpacity>
-                </View>
+                // Composant carte d'invitation premium
+<View style={styles.invitationCard}>
+  {/* Section Info Utilisateur avec animation */}
+  <View style={styles.invitationInfo}>
+    <View style={styles.avatarContainer}>
+      <Image
+        source={{ uri: buildAvatarUrl(item.sender.photoUrl) }}
+        style={styles.invitationAvatar}
+      />
+      <View style={styles.statusIndicator} />
+    </View>
+    
+    <View style={styles.userInfoContainer}>
+      <Text style={styles.invitationUserName}>{item.sender.username}</Text>
+      <Text style={styles.invitationTimeStamp}>
+        Vous a invité • {
+          // Utilisation d'une variable intermédiaire pour éviter l'accès direct à createdAt
+          (() => {
+            const rawDate = item && item.createdAt ? item.createdAt : null;
+            console.log(">>> rawDate:", rawDate);
+            const parsedDate = parseInvitationDate(rawDate);
+            return formatRelativeTime(parsedDate);
+          })()
+        }
+      </Text>
+    </View>
+  </View>
+  
+  {/* Animation pour séparateur */}
+  <View style={styles.separator} />
+  
+  {/* Section des boutons améliorés */}
+  <View style={styles.buttonContainer}>
+    <TouchableOpacity
+      style={styles.acceptButton}
+      onPress={() => handleAccept(item.id)}
+      activeOpacity={0.75}
+    >
+      <View style={styles.iconTextContainer}>
+        <Feather name="user-plus" size={16} color="#FFF" style={styles.buttonIcon} />
+        <Text style={styles.acceptButtonText}>Accepter</Text>
+      </View>
+    </TouchableOpacity>
+    
+    <TouchableOpacity
+      style={styles.refuseButton}
+      onPress={() => handleRefuse(item.id)}
+      activeOpacity={0.75}
+    >
+      <View style={styles.iconTextContainer}>
+        <Feather name="x" size={16} color="#667085" style={styles.buttonIcon} />
+        <Text style={styles.refuseButtonText}>Refuser</Text>
+      </View>
+    </TouchableOpacity>
+  </View>
+</View>
               )}
               contentContainerStyle={styles.invitationsList}
             />
@@ -932,57 +1107,132 @@ gap: 2,
     
     // Carte d'invitation
     invitationCard: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
       backgroundColor: '#FFFFFF',
-      borderRadius: 8,
-      padding: 12,
-      marginBottom: 8,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: 0.05,
-      shadowRadius: 2,
-      elevation: 1,
-      // Pas de flex: 1 ici comme demandé
+      borderRadius: 16,
+      padding: 16,
+      marginVertical: 8,
+      shadowColor: '#0F172A',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.06,
+      shadowRadius: 12,
+      elevation: 3,
+      borderWidth: 1,
+      borderColor: '#F1F5F9',
     },
     
-    // Informations de l'invitation
     invitationInfo: {
       flexDirection: 'row',
       alignItems: 'center',
+      marginBottom: 14,
     },
     
-    // Avatar de l'invitation
+    avatarContainer: {
+      position: 'relative',
+    },
+    
     invitationAvatar: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      marginRight: 12,
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      borderWidth: 2,
+      borderColor: '#F0F9FF',
     },
     
-    // Nom d'utilisateur de l'invitation
-    invitationUserName: {
-      fontSize: 15,
-      fontWeight: '500',
-      color: '#333',
-    },
-    
-    // Bouton d'acceptation
-    acceptButton: {
-      backgroundColor: '#4A90E2',
-      paddingHorizontal: 15,
-      paddingVertical: 8,
+    statusIndicator: {
+      position: 'absolute',
+      bottom: 0,
+      right: 0,
+      width: 12,
+      height: 12,
       borderRadius: 6,
+      backgroundColor: '#10B981',
+      borderWidth: 2,
+      borderColor: '#FFFFFF',
     },
     
-    // Texte du bouton d'acceptation
+    userInfoContainer: {
+      marginLeft: 12,
+      flex: 1,
+    },
+    
+    invitationUserName: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: '#1E293B',
+      marginBottom: 2,
+    },
+    
+    invitationTimeStamp: {
+      fontSize: 13,
+      color: '#64748B',
+      fontWeight: '400',
+    },
+    
+    separator: {
+      height: 1,
+      backgroundColor: '#F1F5F9',
+      marginBottom: 14,
+    },
+    
+    buttonContainer: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      gap: 10,
+    },
+    
+    iconTextContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    
+    buttonIcon: {
+      marginRight: 8,
+    },
+    
+    acceptButton: {
+      flex: 1,
+      backgroundColor: '#0EA5E9',
+      paddingVertical: 12,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+      shadowColor: '#0284C7',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.2,
+      shadowRadius: 6,
+      elevation: 3,
+    },
+    
     acceptButtonText: {
       color: '#FFFFFF',
-      fontWeight: '500',
+      fontWeight: '600',
       fontSize: 14,
+      letterSpacing: 0.2,
     },
- 
+    
+    refuseButton: {
+      flex: 1,
+      backgroundColor: '#F8FAFC',
+      paddingVertical: 12,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: '#E2E8F0',
+      shadowColor: '#64748B',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.03,
+      shadowRadius: 3,
+      elevation: 1,
+    },
+    
+    refuseButtonText: {
+      color: '#667085',
+      fontWeight: '600',
+      fontSize: 14,
+      letterSpacing: 0.2,
+    },
   // Search
   searchContainer: {
     flexDirection: "row",

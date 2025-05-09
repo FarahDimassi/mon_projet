@@ -187,6 +187,8 @@ export default function Coaches() {
         shouldShowAlert: true,
         shouldPlaySound: true,
         shouldSetBadge: false,
+        shouldShowBanner: true,
+        shouldShowList: true,
       }),
     });
   
@@ -741,7 +743,7 @@ export default function Coaches() {
       </Modal>
 
       <FooterR />
-      <Toast />
+      <Toast position="bottom" visibilityTime={4000} />
     </View>
   );
 }
