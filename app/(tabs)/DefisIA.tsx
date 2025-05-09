@@ -480,7 +480,7 @@ export default function DailyChallenge() {
       <ScrollView style={styles.container}>
         {/* Header avec stats */}
         <LinearGradient
-          colors={['#3B82F6', '#1E40AF']}
+          colors={['rgba(195, 0, 0, 0.2)', 'rgba(195, 0, 0, 0.5)']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 0 }}
           style={styles.headerContainer}
@@ -508,7 +508,7 @@ export default function DailyChallenge() {
         {/* Liste des défis */}
         {loading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#3B82F6" />
+            <ActivityIndicator size="large" color="rgba(195, 0, 0, 0.5)" />
             <Text style={styles.loadingText}>Chargement des défis...</Text>
           </View>
         ) : (
@@ -878,7 +878,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: "#3B82F6",
+    backgroundColor: "rgba(195, 0, 0, 0.5)",
     justifyContent: "center",
     alignItems: "center",
     marginRight: 12,
@@ -900,7 +900,7 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: "#3B82F6",
+    backgroundColor: "rgba(195, 0, 0, 0.5)",
     marginRight: 4,
   },
   pointsContainer: {
@@ -910,7 +910,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   pointsText: {
-    color: "#2563EB",
+    color: "rgba(195, 0, 0, 0.7)",
     fontWeight: "bold",
     fontSize: 14,
   },
@@ -926,7 +926,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   completeButton: {
-    backgroundColor: "#3B82F6",
+    backgroundColor: "rgba(195, 0, 0, 0.5)",
     borderRadius: 8,
     paddingVertical: 10,
     alignItems: "center",
@@ -1072,7 +1072,7 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   sportIconContainer: {
-    backgroundColor: "#3B82F6",
+    backgroundColor: "rgba(195, 0, 0, 0.5)",
   },
   nutritionIconContainer: {
     backgroundColor: "#10B981",
@@ -1110,7 +1110,7 @@ const styles = StyleSheet.create({
   modalPointsValue: {
     fontSize: 16,
     fontWeight: "bold",
-    color: "#3B82F6",
+    color: "rgba(195, 0, 0, 0.7)",
   },
   difficultyContainer: {
     flexDirection: "row",
@@ -1119,7 +1119,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: "#3B82F6",
+    backgroundColor: "rgba(195, 0, 0, 0.5)",
     marginHorizontal: 2,
   },
   descriptionContainer: {
@@ -1140,7 +1140,7 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   modalCompleteButton: {
-    backgroundColor: "#3B82F6",
+    backgroundColor: "rgba(195, 0, 0, 0.5)",
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: "center",

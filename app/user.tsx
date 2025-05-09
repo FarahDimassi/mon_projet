@@ -84,19 +84,31 @@ export default function UserPage() {
   const loadDiaryTicks = async () => {
     if (!userId) return;
     try {
-      // AJOUT : on récupère le jour courant pour la clé
-      const day = currentDayPlan.day;
-  
-      // MODIF : la clé inclut désormais le jour
+      // Récupérer la date actuelle au format YYYY-MM-DD pour la persistance
+      const currentDate = new Date().toISOString().split('T')[0];
+      
+      // Clé pour la date du dernier plan consulté
+      const lastPlanDateKey = `lastPlanDate_${userId}`;
+      const lastPlanDate = await AsyncStorage.getItem(lastPlanDateKey);
+      
+      // Si la date a changé, on va réinitialiser les ticks
+      const dateChanged = lastPlanDate !== currentDate;
+      if (dateChanged) {
+        // Enregistrer la nouvelle date comme dernière date consultée
+        await AsyncStorage.setItem(lastPlanDateKey, currentDate);
+      }
+      
+      // On utilise toujours une clé spécifique au jour du plan actuel
+      const day = currentDayPlan?.day || 1;
       const diaryKey = `diaryTicks_${userId}_day${day}`;
-  
-      // MODIF : on lit depuis la nouvelle clé
+
+      // Récupérer les ticks stockés
       const storedTicks = await AsyncStorage.getItem(diaryKey);
-  
-      if (storedTicks) {
+      
+      if (storedTicks && !dateChanged) {
+        // Si on a des données stockées et que la date n'a pas changé, on les utilise
         const parsed = JSON.parse(storedTicks);
-  
-        // MODIF : lecture des valeurs tick pour ce jour seulement
+        
         setMealCompletion(parsed.mealCompletion || {
           breakfast: false,
           lunch:     false,
@@ -107,10 +119,10 @@ export default function UserPage() {
         setStepsCompletion(parsed.stepsCompletion       || false);
         setDistanceCompletion(parsed.distanceCompletion || false);
         setCaloriesCompletion(parsed.caloriesCompletion || false);
-        setWaterCompletion(parsed.waterCompletion         || false);
-  
+        setWaterCompletion(parsed.waterCompletion       || false);
       } else {
-        // AJOUT : on initialise un objet de ticks par défaut pour ce jour
+        // Date a changé OU pas de données stockées:
+        // On initialise avec valeurs par défaut
         const defaultTicks = {
           mealCompletion: {
             breakfast: false,
@@ -124,11 +136,11 @@ export default function UserPage() {
           caloriesCompletion: false,
           waterCompletion:    false,
         };
-  
-        // MODIF : on stocke ces defaults sous la clé spécifique au jour
+        
+        // Enregistrer ces valeurs par défaut
         await AsyncStorage.setItem(diaryKey, JSON.stringify(defaultTicks));
-  
-        // AJOUT : et on injecte immédiatement ces valeurs dans le state
+        
+        // Et mettre à jour l'état
         setMealCompletion(defaultTicks.mealCompletion);
         setActivityCompletion(defaultTicks.activityCompletion);
         setStepsCompletion(defaultTicks.stepsCompletion);
@@ -145,22 +157,26 @@ export default function UserPage() {
   const updateDiaryTicks = async (updatedValues: Partial<any>) => {
     if (!userId || !currentDayPlan) return;
   
-    // AJOUT : on récupère le jour courant pour la clé
+    // On utilise le jour du plan actuel pour la clé
     const day = currentDayPlan.day;
-  
-    // MODIF : la clé inclut désormais le jour
     const diaryKey = `diaryTicks_${userId}_day${day}`;
+    
+    // Enregistrer aussi la date actuelle comme dernière date de consultation
+    const currentDate = new Date().toISOString().split('T')[0];
+    const lastPlanDateKey = `lastPlanDate_${userId}`;
+    await AsyncStorage.setItem(lastPlanDateKey, currentDate);
   
     try {
-      // MODIF : on lit l’état courant pour ce jour
+      // Lire l'état actuel des ticks
       const stored = await AsyncStorage.getItem(diaryKey);
       const current = stored ? JSON.parse(stored) : {};
   
-      // MODIF : on fusionne avec les nouvelles valeurs
+      // Fusionner avec les nouvelles valeurs
       const merged = { ...current, ...updatedValues };
   
-      // MODIF : on enregistre sous la clé spécifique au jour
+      // Sauvegarder dans AsyncStorage
       await AsyncStorage.setItem(diaryKey, JSON.stringify(merged));
+      console.log(`✓ Ticks mis à jour pour le jour ${day}`, merged);
     } catch (error) {
       console.error("Erreur lors de la mise à jour des diaryTicks :", error);
     }
@@ -576,13 +592,14 @@ export default function UserPage() {
 
   // Fonction qui vérifie si tous les repas sont cochés et affiche un toast
   const checkAllMealsCompleted = (mealState: typeof mealCompletion) => {
-    // Vérifie si tous les repas sont cochés
-    if (mealState.breakfast && mealState.lunch && mealState.dinner && mealState.snacks) {
+    // Vérifie si tous les repas sont cochés et aussi les autres activités
+    if (mealState.breakfast && mealState.lunch && mealState.dinner && mealState.snacks && 
+        activityCompletion && stepsCompletion && distanceCompletion && waterCompletion) {
       // Afficher directement le toast de félicitations
       Toast.show({
         type: "success",
         text1: "Félicitations !",
-        text2: "Bravo ! Tu as terminé ton plan alimentaire d'aujourd'hui !",
+        text2: "Bravo ! Tu as complété tout ton plan d'aujourd'hui !",
         position: "bottom",
         visibilityTime: 5000
       });

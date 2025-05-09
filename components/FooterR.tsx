@@ -150,7 +150,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     position: "absolute",
     bottom: 20,
-    left: "50%",
+    left: "52%",
     marginLeft: -19,
     elevation: 5,
     top : -18,
