@@ -139,7 +139,7 @@ export default function Chatbot() {
               {msg.role === "assistant" && <Ionicons name="chatbubble" size={16} color="blue" />}
             </View>
           ))}
-          {loading && <ActivityIndicator size="large" color="#007AFF" />}
+          {loading && <ActivityIndicator size="large" color="rgba(195, 0, 0, 0.8)" />}
         </ScrollView>
         <View style={styles.inputContainer}>
           <TextInput
@@ -179,7 +179,7 @@ const styles = StyleSheet.create({
   },
   userMessage: {
     alignSelf: "flex-end",
-    backgroundColor: "#007AFF",
+    backgroundColor: "rgba(195, 0, 0, 0.6)",
     padding: 10,
     borderRadius: 10,
     marginBottom: 5,

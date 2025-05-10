@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -11,12 +11,11 @@ import {
   Alert,
   Dimensions,
   Image,
-  ImageBackground,
   Platform,
+  FlatList,
 } from "react-native";
-import { Calendar } from "react-native-calendars";
+import { Calendar, LocaleConfig } from "react-native-calendars";
 import { Picker } from "@react-native-picker/picker";
-import { LinearGradient } from "expo-linear-gradient";
 
 // Type pour représenter l'objet date renvoyé par react-native-calendars
 type DateObject = {
@@ -27,7 +26,7 @@ type DateObject = {
   timestamp: number;
 };
 
-// Importez vos fonctions depuis authService
+// Import des fonctions d'authService
 import { 
   getToken, 
   getUserByUsername, 
@@ -38,36 +37,43 @@ import {
 } from "../../utils/authService";
 import { getMealPlan } from "../../utils/authService";
 
-// Définition de l'API_URL (à adapter)
+// Import des composants et des icônes
+import FooterC from "../../components/FooterC";
+import { Ionicons, MaterialCommunityIcons, FontAwesome5, Feather } from "@expo/vector-icons";
+// @ts-ignore
+import { useNavigation } from "expo-router";
+
+// Configuration de la localisation pour le calendrier
+LocaleConfig.locales['fr'] = {
+  monthNames: [
+    'Janvier',
+    'Février',
+    'Mars',
+    'Avril',
+    'Mai',
+    'Juin',
+    'Juillet',
+    'Août',
+    'Septembre',
+    'Octobre',
+    'Novembre',
+    'Décembre'
+  ],
+  monthNamesShort: ['Jan.', 'Fév.', 'Mars', 'Avr.', 'Mai', 'Juin', 'Juil.', 'Août', 'Sept.', 'Oct.', 'Nov.', 'Déc.'],
+  dayNames: ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'],
+  dayNamesShort: ['Dim.', 'Lun.', 'Mar.', 'Mer.', 'Jeu.', 'Ven.', 'Sam.'],
+  today: "Aujourd'hui"
+};
+LocaleConfig.defaultLocale = 'fr';
+
+// API URL
 const API_URL = "http://192.168.1.139:8080";
 
-// Importez votre footer adapté pour coach
-import FooterC from "../../components/FooterC";
-import { Ionicons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
-
-
-// Palettes de couleurs pour le calendrier
-const COLORS = {
-  primary: "#4A6FFF", // Bleu principal
-  secondary: "#FF6B6B", // Rouge pour les dates avec remarques
-  accent: "#4CAF50", // Vert pour les dates avec plans
-  highlight: "#FFD166", // Jaune pour les dates sélectionnées
-  background: "#F9FAFF", // Fond clair
-  modal: "#FFFFFF", // Fond modal
-  text: "#2D3748", // Texte principal
-  textLight: "#718096", // Texte secondaire
-  success: "#38B2AC", // Vert succès
-  error: "#E53E3E", // Rouge erreur
-  border: "#E2E8F0", // Bordures
-};
-
-// Fonction pour récupérer toutes les remarques pour une date donnée, en utilisant la date et le coachId.
+// Fonction pour récupérer les remarques pour une date
 async function getCalendarPlanRemarks(date: string, coachId: number): Promise<any[]> {
   try {
     const token = await getToken();
     const url = `${API_URL}/api/calendar/plan/remarks?date=${encodeURIComponent(date)}&coachId=${coachId}`;
-    console.log("GET remarques via URL :", url);
     const response = await fetch(url, {
       method: "GET",
       headers: {
@@ -79,87 +85,85 @@ async function getCalendarPlanRemarks(date: string, coachId: number): Promise<an
       const errorText = await response.text();
       throw new Error(`Erreur GET (remarks), status = ${response.status}. Message: ${errorText}`);
     }
-    const data = await response.json();
-    console.log("Remarques récupérées :", data);
-    return data;
+    return await response.json();
   } catch (error) {
     console.error("Erreur dans getCalendarPlanRemarks :", error);
-    throw error;
+    return []; // Retourner un tableau vide en cas d'erreur
+  }
+}
+
+// Fonction pour vérifier si une date a des plans nutritionnels
+async function checkIfDateHasPlans(date: string, userId: number, coachId: number): Promise<boolean> {
+  try {
+    if (!userId || !coachId) return false;
+    
+    const plan = await getMealPlan(date, userId, coachId);
+    return !!(plan && plan.id);
+  } catch (error) {
+    console.log(`Pas de plan pour ${date}`);
+    return false;
   }
 }
 
 export default function CalendarScreen() {
   // États principaux
   const [mealPlan, setMealPlan] = useState<any>(null);
-  const [markedDates, setMarkedDates] = useState<{ 
-    [key: string]: { 
-      marked: boolean; 
-      dotColor?: string;
-      selected?: boolean;
-      selectedColor?: string;
-      customStyles?: {
-        container?: {
-          backgroundColor?: string;
-        };
-        text?: {
-          color?: string;
-          fontWeight?: string;
-        };
-      };
-    } 
-  }>({});
+  const [markedDates, setMarkedDates] = useState<{[key: string]: any}>({});
   const [loading, setLoading] = useState(false);
   const [selectedDate, setSelectedDate] = useState("");
   const [modalVisible, setModalVisible] = useState(false);
+  const [currentMonth, setCurrentMonth] = useState("");
+  const [currentMonthObj, setCurrentMonthObj] = useState<{month: number, year: number} | null>(null);
+  const calendarRef = useRef(null);
   
-  // Pour la résolution du nom d'utilisateur
+  // États pour sélectionner un utilisateur
   const [newUsername, setNewUsername] = useState("");
   const [targetUserId, setTargetUserId] = useState<number | null>(null);
-  
-  // CoachId récupéré via le token
   const [coachId, setCoachId] = useState<number | null>(null);
-  
-  // Liste des invitations pour alimenter les listes déroulantes
   const [invitations, setInvitations] = useState<any[]>([]);
   
-  // États pour la modal d'ajout de plan
+  // États pour les modales
   const [addPlanModalVisible, setAddPlanModalVisible] = useState(false);
   const [addPlanUsername, setAddPlanUsername] = useState("");
   const [addPlanDate, setAddPlanDate] = useState("");
   const [addPlanComment, setAddPlanComment] = useState("");
-  
-  // États pour la modal dédiée aux remarques
   const [remarks, setRemarks] = useState<any[]>([]);
   const [remarksModalVisible, setRemarksModalVisible] = useState(false);
   
-  // États pour la modal d'édition d'une remarque
-  const [editModalVisible, setEditModalVisible] = useState(false);
-  const [editRemark, setEditRemark] = useState("");
-  const [editPlanId, setEditPlanId] = useState<number | null>(null);
+  const navigation = useNavigation();
+
+  // État pour contrôler la date actuelle du calendrier
+  const [currentDate, setCurrentDate] = useState(new Date().toISOString().split('T')[0]);
 
   // Récupération du coachId dès le montage
   useEffect(() => {
     const fetchCoachId = async () => {
       try {
-        console.log("Récupération du coachId...");
         const id = await getUserIdFromToken();
-        console.log("CoachId détecté :", id);
         setCoachId(id);
+        console.log("Coach ID récupéré:", id);
       } catch (error) {
         console.error("Erreur lors de la récupération du coachId :", error);
       }
     };
     fetchCoachId();
+    
+    // Initialiser le mois actuel
+    const today = new Date();
+    const month = today.getMonth() + 1;
+    const year = today.getFullYear();
+    const monthName = today.toLocaleString('default', { month: 'long' });
+    setCurrentMonth(`${monthName} ${year}`);
+    setCurrentMonthObj({ month, year });
   }, []);
 
-  // Récupération des invitations depuis l'API une fois le coachId défini
+  // Récupération des invitations
   useEffect(() => {
     if (coachId !== null) {
       const fetchInvitations = async () => {
         try {
           const token = await getToken();
           const url = `${API_URL}/api/friends/coach-invitations/${coachId}`;
-          console.log("Récupération des invitations via URL :", url);
           const response = await fetch(url, {
             method: "GET",
             headers: {
@@ -168,11 +172,9 @@ export default function CalendarScreen() {
             }
           });
           if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`Erreur lors de la récupération des invitations, status = ${response.status}. Message: ${errorText}`);
+            throw new Error(`Erreur lors de la récupération des invitations`);
           }
           const data = await response.json();
-          console.log("Invitations récupérées :", data);
           setInvitations(data);
         } catch (error) {
           console.error("Erreur dans fetchInvitations :", error);
@@ -182,25 +184,179 @@ export default function CalendarScreen() {
     }
   }, [coachId]);
 
-  // Marquage de la date une fois le targetUserId et selectedDate définis
+  // Charger les données du calendrier quand le coach ID est disponible ou quand le mois change
+  useEffect(() => {
+    if (coachId !== null && currentMonthObj) {
+      console.log(`Mois actuel: ${currentMonthObj.month}/${currentMonthObj.year}`);
+      loadMonthMarkers(currentMonthObj.month, currentMonthObj.year);
+    }
+  }, [coachId, currentMonthObj]);
+
+  // Marquage de la date
   useEffect(() => {
     if (targetUserId !== null && selectedDate) {
-      console.log("Marquage de la date", selectedDate, "pour targetUserId =", targetUserId);
       setMarkedDates(prev => ({
         ...prev,
         [selectedDate]: { 
           marked: true, 
           selected: true,
-          selectedColor: COLORS.highlight,
-          dotColor: COLORS.primary 
+          selectedColor: 'rgba(195, 0, 0, 0.7)',
+          dotColor: prev[selectedDate]?.dotColor || '#4A6FFF'
         }
       }));
     }
   }, [targetUserId, selectedDate]);
 
-  // Lorsqu'on clique sur une date, récupération du plan via getMealPlan
+  // Fonction pour charger les marqueurs du mois sans rafraîchissement visible
+  const loadMonthMarkers = async (month: number, year: number) => {
+    if (coachId === null) return;
+    
+    try {
+      // Ne pas afficher l'indicateur de chargement pendant la navigation entre les mois
+      const isInitialLoad = !Object.keys(markedDates).length;
+      if (isInitialLoad) {
+        setLoading(true);
+      }
+      
+      console.log(`Chargement des marqueurs pour ${month}/${year}`);
+      
+      // Préparer les dates du mois
+      const datesInMonth: string[] = [];
+      let currentDate = new Date(year, month - 1, 1);
+      const nextMonth = new Date(year, month, 0);
+      const lastDay = nextMonth.getDate();
+      
+      // Générer toutes les dates du mois
+      for (let day = 1; day <= lastDay; day++) {
+        const dateObj = new Date(year, month - 1, day);
+        const dateStr = dateObj.toISOString().split('T')[0];
+        datesInMonth.push(dateStr);
+      }
+      
+      // Commencer avec un objet markedDates vide pour ce mois
+      const newMarkedDates: {[key: string]: any} = {};
+      
+      // Pour chaque date du mois, vérifier les remarques et les plans
+      for (const dateStr of datesInMonth) {
+        try {
+          // Vérifier s'il y a des remarques pour cette date
+          const remarksData = await getCalendarPlanRemarks(dateStr, coachId);
+          const hasRemarks = remarksData && remarksData.length > 0;
+          
+          // Si la date a des remarques, la marquer
+          if (hasRemarks) {
+            newMarkedDates[dateStr] = {
+              ...(newMarkedDates[dateStr] || {}),
+              marked: true,
+              dotColor: '#FF6B6B' // Rouge pour les remarques
+            };
+          }
+          
+          // Si on a un utilisateur cible, vérifier s'il a un plan pour cette date
+          if (targetUserId !== null) {
+            const hasPlan = await checkIfDateHasPlans(dateStr, targetUserId, coachId);
+            
+            if (hasPlan && !hasRemarks) {
+              // Si la date a un plan mais pas de remarques, la marquer en vert
+              newMarkedDates[dateStr] = {
+                ...(newMarkedDates[dateStr] || {}),
+                marked: true,
+                dotColor: '#4CAF50' // Vert pour les plans
+              };
+            }
+          }
+        } catch (error) {
+          console.error(`Erreur lors de la vérification des marqueurs pour ${dateStr}:`, error);
+        }
+      }
+      
+      // Si une date est sélectionnée, s'assurer qu'elle reste sélectionnée
+      if (selectedDate) {
+        newMarkedDates[selectedDate] = {
+          ...(newMarkedDates[selectedDate] || {}),
+          marked: true,
+          selected: true,
+          selectedColor: 'rgba(195, 0, 0, 0.7)',
+        };
+      }
+      
+      setMarkedDates(newMarkedDates);
+    } catch (error) {
+      console.error("Erreur dans loadMonthMarkers:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Navigation entre les mois - approche directe
+  const goToPreviousMonth = () => {
+    if (!currentMonthObj) return;
+    
+    // Calculer le nouveau mois et année
+    let newMonth, newYear;
+    
+    if (currentMonthObj.month === 1) {
+      newMonth = 12;
+      newYear = currentMonthObj.year - 1;
+    } else {
+      newMonth = currentMonthObj.month - 1;
+      newYear = currentMonthObj.year;
+    }
+    
+    // Mettre à jour le titre du mois affiché
+    const date = new Date(newYear, newMonth - 1);
+    const monthName = date.toLocaleString('default', { month: 'long' });
+    setCurrentMonth(`${monthName} ${newYear}`);
+    
+    // Créer une nouvelle date pour le calendrier - c'est la clé du changement immédiat
+    const newDate = `${newYear}-${String(newMonth).padStart(2, '0')}-01`;
+    setCurrentDate(newDate);
+    
+    // Mettre à jour l'objet du mois courant pour les marqueurs
+    setCurrentMonthObj({ month: newMonth, year: newYear });
+  };
+  
+  const goToNextMonth = () => {
+    if (!currentMonthObj) return;
+    
+    // Calculer le nouveau mois et année
+    let newMonth, newYear;
+    
+    if (currentMonthObj.month === 12) {
+      newMonth = 1;
+      newYear = currentMonthObj.year + 1;
+    } else {
+      newMonth = currentMonthObj.month + 1;
+      newYear = currentMonthObj.year;
+    }
+    
+    // Mettre à jour le titre du mois affiché
+    const date = new Date(newYear, newMonth - 1);
+    const monthName = date.toLocaleString('default', { month: 'long' });
+    setCurrentMonth(`${monthName} ${newYear}`);
+    
+    // Créer une nouvelle date pour le calendrier - c'est la clé du changement immédiat
+    const newDate = `${newYear}-${String(newMonth).padStart(2, '0')}-01`;
+    setCurrentDate(newDate);
+    
+    // Mettre à jour l'objet du mois courant pour les marqueurs
+    setCurrentMonthObj({ month: newMonth, year: newYear });
+  };
+
+  // Fonction pour gérer le changement de mois via le composant Calendar
+  const onMonthChange = (monthData: any) => {
+    console.log("Mois changé via le composant Calendar:", monthData);
+    const { month, year } = monthData;
+    
+    const date = new Date(year, month - 1);
+    const monthName = date.toLocaleString('default', { month: 'long' });
+    
+    setCurrentMonth(`${monthName} ${year}`);
+    setCurrentMonthObj({ month, year });
+  };
+
+  // Lorsqu'on clique sur une date
   const handleDayPress = async (day: DateObject) => {
-    console.log("handleDayPress appelé pour la date :", day.dateString);
     setSelectedDate(day.dateString);
     
     // Marquer la date comme sélectionnée
@@ -209,7 +365,7 @@ export default function CalendarScreen() {
       
       // Réinitialiser la sélection pour toutes les dates
       Object.keys(newMarkedDates).forEach(date => {
-        if (newMarkedDates[date].selected) {
+        if (newMarkedDates[date] && newMarkedDates[date].selected) {
           newMarkedDates[date] = {
             ...newMarkedDates[date],
             selected: false
@@ -222,28 +378,27 @@ export default function CalendarScreen() {
         ...(newMarkedDates[day.dateString] || {}),
         marked: true,
         selected: true,
-        selectedColor: COLORS.highlight,
-        dotColor: newMarkedDates[day.dateString]?.dotColor || COLORS.primary
+        selectedColor: 'rgba(195, 0, 0, 0.7)',
+        dotColor: newMarkedDates[day.dateString]?.dotColor || '#4A6FFF'
       };
       
       return newMarkedDates;
     });
     
     if (targetUserId === null) {
-      Alert.alert("Information", "Veuillez saisir le nom d'utilisateur dans la modal.");
       setMealPlan(null);
       setModalVisible(true);
       return;
     }
+    
     if (coachId === null) {
       Alert.alert("Erreur", "CoachId non disponible.");
       return;
     }
+    
     try {
       setLoading(true);
-      console.log("Appel à getMealPlan avec :", { date: day.dateString, targetUserId, coachId });
       const plan = await getMealPlan(day.dateString, targetUserId, coachId);
-      console.log("Plan récupéré :", plan);
       setMealPlan(plan);
       
       // Vérifier s'il y a des remarques pour cette date
@@ -255,17 +410,16 @@ export default function CalendarScreen() {
         [day.dateString]: { 
           marked: true, 
           selected: true,
-          selectedColor: COLORS.highlight,
-          dotColor: hasRemarks ? COLORS.secondary : 
-                   (plan && plan.title && plan.title.trim() !== "") ? COLORS.accent : 
-                   COLORS.primary
+          selectedColor: 'rgba(195, 0, 0, 0.7)',
+          dotColor: hasRemarks ? '#FF6B6B' : 
+                  (plan && plan.id) ? '#4CAF50' : 
+                  '#4A6FFF'
         }
       }));
       
       setModalVisible(true);
     } catch (error) {
       console.error("Erreur lors de la récupération du meal plan :", error);
-      Alert.alert("Erreur", "Impossible de récupérer le meal plan pour cette date.");
       setMealPlan(null);
       setModalVisible(true);
     } finally {
@@ -275,7 +429,6 @@ export default function CalendarScreen() {
 
   // Résolution du nom d'utilisateur
   const resolveUsername = async () => {
-    console.log("resolveUsername appelé, newUsername =", newUsername);
     if (!newUsername) {
       Alert.alert("Erreur", "Veuillez sélectionner un nom d'utilisateur.");
       return;
@@ -283,17 +436,14 @@ export default function CalendarScreen() {
     try {
       setLoading(true);
       const resolvedUser = await getUserByUsername(newUsername);
-      console.log("Utilisateur résolu :", resolvedUser);
       if (!resolvedUser || !resolvedUser.id) {
         Alert.alert("Erreur", "Aucun utilisateur trouvé pour ce nom d'utilisateur.");
         return;
       }
       setTargetUserId(resolvedUser.id);
-      Alert.alert("Succès", `Utilisateur résolu : ${resolvedUser.id}`);
+      
       if (selectedDate && coachId !== null) {
-        console.log("Récupération immédiate du plan pour la date", selectedDate);
         const plan = await getMealPlan(selectedDate, resolvedUser.id, coachId);
-        console.log("Plan récupéré après résolution :", plan);
         setMealPlan(plan);
         
         // Vérifier s'il y a des remarques pour cette date
@@ -305,14 +455,17 @@ export default function CalendarScreen() {
           [selectedDate]: { 
             marked: true, 
             selected: true,
-            selectedColor: COLORS.highlight,
-            dotColor: hasRemarks ? COLORS.secondary : 
-                     (plan && plan.title && plan.title.trim() !== "") ? COLORS.accent : 
-                     COLORS.primary
+            selectedColor: 'rgba(195, 0, 0, 0.7)',
+            dotColor: hasRemarks ? '#FF6B6B' : 
+                    (plan && plan.id) ? '#4CAF50' : 
+                    '#4A6FFF'
           }
         }));
-        
-        setModalVisible(true);
+      }
+      
+      // Recharger les marqueurs du mois actuel avec le nouvel utilisateur cible
+      if (currentMonthObj) {
+        loadMonthMarkers(currentMonthObj.month, currentMonthObj.year);
       }
     } catch (error) {
       console.error("Erreur lors de la résolution du nom d'utilisateur :", error);
@@ -340,6 +493,7 @@ export default function CalendarScreen() {
       Alert.alert("Erreur", "CoachId non disponible.");
       return;
     }
+    
     try {
       setLoading(true);
       const resolvedUser = await getUserByUsername(addPlanUsername);
@@ -348,19 +502,18 @@ export default function CalendarScreen() {
         return;
       }
       const userId = resolvedUser.id;
-      console.log("Enregistrement du plan pour :", { date: addPlanDate, userId, coachId, comment: addPlanComment });
-      const newPlan = await saveCalendarPlan(addPlanDate, userId, coachId, addPlanUsername, addPlanComment);
-      console.log("Plan enregistré :", newPlan);
+      await saveCalendarPlan(addPlanDate, userId, coachId, addPlanUsername, addPlanComment);
       
       // Animation de succès
-      Alert.alert("Succès", "Plan enregistré avec succès.");
+      Alert.alert("Succès", "Remarque enregistrée avec succès.");
       
       // Mise à jour visuelle du calendrier
       setMarkedDates(prev => ({
         ...prev,
         [addPlanDate]: { 
+          ...(prev[addPlanDate] || {}),
           marked: true, 
-          dotColor: COLORS.secondary  // Couleur rouge pour les remarques
+          dotColor: '#FF6B6B'  // Couleur rouge pour les remarques
         }
       }));
       
@@ -368,15 +521,20 @@ export default function CalendarScreen() {
       setAddPlanDate("");
       setAddPlanUsername("");
       setAddPlanComment("");
+      
+      // Recharger les marqueurs du mois actuel
+      if (currentMonthObj) {
+        loadMonthMarkers(currentMonthObj.month, currentMonthObj.year);
+      }
     } catch (error) {
       console.error("Erreur lors de l'enregistrement du plan :", error);
-      Alert.alert("Erreur", "Erreur lors de l'enregistrement du plan.");
+      Alert.alert("Erreur", "Erreur lors de l'enregistrement de la remarque.");
     } finally {
       setLoading(false);
     }
   };
 
-  // Affichage des remarques pour la date sélectionnée
+  // Affichage des remarques
   const handleShowRemarks = async () => {
     if (!selectedDate) {
       Alert.alert("Erreur", "Veuillez sélectionner une date.");
@@ -386,21 +544,29 @@ export default function CalendarScreen() {
       Alert.alert("Erreur", "CoachId non disponible.");
       return;
     }
+    
     try {
       setLoading(true);
       const remarksData = await getCalendarPlanRemarks(selectedDate, coachId);
-      console.log("Remarques récupérées :", remarksData);
+      
       // Enrichir les remarques avec le nom d'utilisateur
       const enrichedRemarks = await Promise.all(
         remarksData.map(async (item) => {
           try {
             const userData = await getUserByIdForCoach(item.userId);
-            return { ...item, resolvedUsername: userData?.username || `User_${item.userId}` };
+            return { 
+              ...item, 
+              resolvedUsername: userData?.username || `User_${item.userId}` 
+            };
           } catch (error) {
-            return { ...item, resolvedUsername: `User_${item.userId}` };
+            return { 
+              ...item, 
+              resolvedUsername: `User_${item.userId}` 
+            };
           }
         })
       );
+      
       setRemarks(enrichedRemarks);
       
       // Mise à jour visuelle du calendrier
@@ -410,7 +576,7 @@ export default function CalendarScreen() {
           [selectedDate]: { 
             ...prev[selectedDate],
             marked: true, 
-            dotColor: COLORS.secondary // Rouge pour les remarques
+            dotColor: '#FF6B6B' // Rouge pour les remarques
           }
         }));
       }
@@ -425,27 +591,31 @@ export default function CalendarScreen() {
   };
 
   // Suppression d'une remarque
-  const handleDeleteRemark = async (remarkId: number): Promise<void> => {
-    console.log(remarkId);
+  const handleDeleteRemark = async (remarkId: number) => {
     try {
       setLoading(true);
-      console.log("Tentative de suppression pour remarkId :", remarkId);
       await deleteRemark(remarkId);
       Alert.alert("Succès", "Remarque supprimée avec succès.");
-      // Mise à jour de l'état local pour retirer la remarque supprimée
+      
+      // Mise à jour de l'état local
       const updatedRemarks = remarks.filter((remark) => remark.id !== remarkId);
       setRemarks(updatedRemarks);
       
-      // Si c'était la dernière remarque, mettre à jour le marquage de la date
+      // Mise à jour du marquage de la date si c'était la dernière remarque
       if (updatedRemarks.length === 0) {
         setMarkedDates(prev => ({
           ...prev,
           [selectedDate]: { 
             ...prev[selectedDate],
             marked: true, 
-            dotColor: COLORS.primary // Couleur par défaut s'il n'y a plus de remarques
+            dotColor: '#4A6FFF' // Couleur par défaut
           }
         }));
+      }
+      
+      // Recharger les marqueurs du mois actuel
+      if (currentMonthObj) {
+        loadMonthMarkers(currentMonthObj.month, currentMonthObj.year);
       }
     } catch (error) {
       console.error("Erreur lors de la suppression de la remarque :", error);
@@ -455,361 +625,518 @@ export default function CalendarScreen() {
     }
   };
 
-  // Fermeture de la modal de consultation
+  // Fermeture de la modal
   const closeModal = () => {
     setModalVisible(false);
     setTargetUserId(null);
     setNewUsername("");
     setMealPlan(null);
   };
- const navigation = useNavigation();
-  // Configuration du thème du calendrier
-  const calendarTheme = {
-    backgroundColor: COLORS.background,
-    calendarBackground: COLORS.background,
-    textSectionTitleColor: COLORS.text,
-    selectedDayBackgroundColor: COLORS.highlight,
-    selectedDayTextColor: COLORS.text,
-    todayTextColor: COLORS.primary,
-    dayTextColor: COLORS.text,
-    textDisabledColor: COLORS.textLight,
-    dotColor: COLORS.primary,
-    selectedDotColor: COLORS.text,
-    arrowColor: COLORS.primary,
-    monthTextColor: COLORS.text,
-    indicatorColor: COLORS.primary,
-    textDayFontWeight: '600',
-    textMonthFontWeight: 'bold',
-    textDayHeaderFontWeight: '600',
-    textDayFontSize: 16,
-    textMonthFontSize: 18,
-    textDayHeaderFontSize: 14,
+  
+  // Rendu de l'en-tête personnalisé
+  const renderCustomHeader = () => {
+    return (
+      <View style={styles.customHeaderContainer}>
+        <TouchableOpacity onPress={goToPreviousMonth} style={styles.arrowButton}>
+          <Ionicons name="chevron-back" size={24} color="#000" />
+        </TouchableOpacity>
+        <Text style={styles.customHeaderTitle}>{currentMonth}</Text>
+        <TouchableOpacity onPress={goToNextMonth} style={styles.arrowButton}>
+          <Ionicons name="chevron-forward" size={24} color="#000" />
+        </TouchableOpacity>
+      </View>
+    );
+  };
+
+  // Rendu du nom d'utilisateur
+  const renderUsername = () => {
+    const [username, setUsername] = useState<string | null>(null);
+    
+    useEffect(() => {
+      const fetchUsername = async () => {
+        try {
+          const coachId = await getUserIdFromToken();
+          if (coachId) {
+            const coachData = await getUserByIdForCoach(coachId);
+            setUsername(coachData?.username || "Coach");
+          }
+        } catch (error) {
+          console.error("Erreur lors de la récupération du nom d'utilisateur:", error);
+          setUsername("Coach");
+        }
+      };
+      
+      fetchUsername();
+    }, []);
+    
+    return username;
   };
 
   return (
     <View style={styles.container}>
-      <LinearGradient
-        colors={['#f5f7ff', '#ffffff']}
-        style={styles.gradientBackground}
+      {/* Bouton retour */}
+      <TouchableOpacity
+        onPress={() => navigation.navigate('coach')}
+        style={styles.backButton}
       >
-        <TouchableOpacity
-  onPress={() => navigation.navigate('coach')}
-  style={{
-    position: 'absolute',
-    top: 14,
-    left: 11,
-    zIndex: 10,
-  }}
->
-  <Ionicons name="arrow-back" size={32} color="rgba(195, 0, 0, 0.7)" />
-</TouchableOpacity>
+        <Ionicons name="arrow-back" size={32} color="rgba(195, 0, 0, 0.7)" />
+      </TouchableOpacity>
 
-        <View style={styles.calendarHeaderContainer}>
-  <Image 
-    source={require('../../assets/images/calend.png')} 
-    style={styles.calendarIcon}
-  />
-  <Text style={styles.calendarTitle}>Calendrier {'\n'} du  {(() => {
-                const [username, setUsername] = React.useState<string | null>(null);
-  
-                React.useEffect(() => {
-            const fetchUsername = async () => {
-              try {
-                const coachId = await getUserIdFromToken();
-                if (coachId) {
-                  const coachData = await getUserByIdForCoach(coachId);
-                  setUsername(coachData?.username || "Coach");
+      {/* En-tête avec titre et image */}
+      <View style={styles.calendarHeaderContainer}>
+        <Image 
+          source={require('../../assets/images/calend.png')} 
+          style={styles.calendarIcon}
+        />
+        <Text style={styles.title}>Calendrier {'\n'} du {renderUsername()} </Text>
+      </View>
+
+      {/* Bouton d'ajout une remarque */}
+      <TouchableOpacity
+        style={styles.addPlanButton}
+        onPress={() => setAddPlanModalVisible(true)}
+      >
+        <Text style={styles.addPlanButtonText}>+</Text>
+      </TouchableOpacity>
+
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#4A6FFF" />
+        </View>
+      ) : (
+        <View style={styles.calendarContainer}>
+          {/* En-tête personnalisé */}
+          {renderCustomHeader()}
+          
+          {/* Jours de la semaine */}
+          <View style={styles.weekdayHeader}>
+            <Text style={styles.weekdayText}>Dim</Text>
+            <Text style={styles.weekdayText}>Lun</Text>
+            <Text style={styles.weekdayText}>Mar</Text>
+            <Text style={styles.weekdayText}>Mer</Text>
+            <Text style={styles.weekdayText}>Jeu</Text>
+            <Text style={styles.weekdayText}>Ven</Text>
+            <Text style={styles.weekdayText}>Sam</Text>
+          </View>
+          
+          {/* Calendrier */}
+          <Calendar
+            ref={calendarRef}
+            current={currentDate}
+            key={currentDate} // Cette ligne est la clé pour forcer le changement sans rafraîchissement
+            markedDates={markedDates}
+            onDayPress={handleDayPress}
+            onMonthChange={onMonthChange}
+            hideArrows={true}
+            disableArrowLeft={true}
+            disableArrowRight={true}
+            enableSwipeMonths={true}
+            firstDay={1}
+            renderArrow={() => null}
+            theme={{
+              calendarBackground: '#ffffff',
+              textSectionTitleColor: '#333',
+              selectedDayBackgroundColor: 'rgba(195, 0, 0, 0.7)',
+              selectedDayTextColor: '#ffffff',
+              todayTextColor: '#3498db',
+              dayTextColor: '#2d4150',
+              textDisabledColor: '#d9e1e8',
+              arrowColor: 'transparent',
+              monthTextColor: 'transparent',
+              indicatorColor: 'rgba(195, 0, 0, 0.7)',
+              textDayFontWeight: '400',
+              textMonthFontWeight: 'bold',
+              textDayHeaderFontWeight: '500',
+              textDayFontSize: 16,
+              textMonthFontSize: 18,
+              textDayHeaderFontSize: 14,
+              'stylesheet.calendar.header': {
+                header: {
+                  flexDirection: 'row',
+                  justifyContent: 'space-between',
+                  paddingLeft: 10,
+                  paddingRight: 10,
+                  alignItems: 'center',
+                  height: 0,
+                  opacity: 0,
+                },
+                dayHeader: {
+                  opacity: 0,
+                  height: 0,
                 }
-              } catch (error) {
-                console.error("Erreur lors de la récupération du nom d'utilisateur:", error);
-                setUsername("Coach");
-              }
-            };
-  
-            fetchUsername();
-                }, []);
-  
-                return username;
-              })()} </Text>
-</View>
-
-        {/* Bouton Plus pour ouvrir la modal d'ajout de plan */}
-        <TouchableOpacity
-          style={styles.addPlanButton}
-          onPress={() => setAddPlanModalVisible(true)}
-        >
-          <Text style={styles.addPlanButtonText}>+</Text>
-        </TouchableOpacity>
-
-        {loading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={COLORS.primary} />
-          </View>
-        ) : (
-          <View style={styles.calendarContainer}>
-            <Calendar 
-              markedDates={markedDates} 
-              onDayPress={handleDayPress} 
-              theme={calendarTheme}
-              enableSwipeMonths={true}
-              markingType="custom"
-            />
-            <View style={styles.legendContainer}>
-              <View style={styles.legendItem}>
-                <View style={[styles.legendDot, { backgroundColor: COLORS.primary }]} />
-                <Text style={styles.legendText}>Date sélectionnée</Text>
-              </View>
-              <View style={styles.legendItem}>
-                <View style={[styles.legendDot, { backgroundColor: COLORS.secondary }]} />
-                <Text style={styles.legendText}>Avec remarques</Text>
-              </View>
-              <View style={styles.legendItem}>
-                <View style={[styles.legendDot, { backgroundColor: COLORS.accent }]} />
-                <Text style={styles.legendText}>Avec plan</Text>
-              </View>
+              },
+              'stylesheet.day.basic': {
+                base: {
+                  width: 32,
+                  height: 32,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: 16,
+                  marginTop: 4,
+                  marginBottom: 4,
+                },
+                today: {
+                  backgroundColor: '#f8f8fc',
+                  borderWidth: 1,
+                  borderColor: 'rgba(195, 0, 0, 0.3)',
+                },
+                selected: {
+                  backgroundColor: 'rgba(195, 0, 0, 0.7)',
+                  borderRadius: 16,
+                },
+              },
+            }}
+            hideExtraDays={false}
+          />
+          
+          {/* Légende */}
+          <View style={styles.legendContainer}>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, { backgroundColor: 'rgba(195, 0, 0, 0.7)' }]} />
+              <Text style={styles.legendText}>Date sélectionnée</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, { backgroundColor: '#FF6B6B' }]} />
+              <Text style={styles.legendText}>Avec remarques</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, { backgroundColor: '#4CAF50' }]} />
+              <Text style={styles.legendText}>Avec plan</Text>
             </View>
           </View>
-        )}
+        </View>
+      )}
 
-        {/* Modal de consultation du plan */}
-        <Modal
-          visible={modalVisible}
-          transparent
-          animationType="slide"
-          onRequestClose={closeModal}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <LinearGradient
-                colors={['#f0f4ff', '#ffffff']}
-                style={styles.modalGradient}
+      {/* Modal de consultation du plan */}
+      <Modal
+        visible={modalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={closeModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            {/* En-tête avec date et bouton de fermeture */}
+            <View style={styles.modalHeader}>
+              <View style={styles.modalDateContainer}>
+                <Ionicons name="calendar" size={24} color="rgba(195, 0, 0, 0.7)" />
+                <Text style={styles.modalTitle}>{selectedDate}</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.modalCloseIcon}
+                onPress={closeModal}
               >
-                <Text style={styles.modalTitle}>Plan pour le {selectedDate}</Text>
-                {targetUserId === null ? (
-                  <>
-                    <Text style={styles.planText}>
-                      Veuillez sélectionner le nom d'utilisateur :
-                    </Text>
-                    <View style={styles.pickerContainer}>
-                      <Picker
-                        selectedValue={newUsername}
-                        style={styles.picker}
-                        onValueChange={(itemValue) => setNewUsername(itemValue)}
-                      >
-                        <Picker.Item label="Sélectionnez un utilisateur" value="" />
-                        {invitations
-                          .filter((invitation, index, self) =>
-                            index === self.findIndex((i) => i.sender?.id === invitation.sender?.id)
-                          )
-                          .map((invitation: any) => (
-                            <Picker.Item
-                              key={invitation.id}
-                              label={invitation.sender?.username || `Invitation #${invitation.id}`}
-                              value={invitation.sender?.username || invitation.id}
-                            />
-                          ))}
-                      </Picker>
-                    </View>
-                    <View style={styles.buttonRow}>
-                      <TouchableOpacity
-                        style={[styles.actionButton, { backgroundColor: COLORS.primary }]}
-                        onPress={resolveUsername}
-                      >
-                        <Text style={styles.actionButtonText}>Résoudre</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[styles.actionButton, { backgroundColor: COLORS.secondary }]}
-                        onPress={handleShowRemarks}
-                      >
-                        <Text style={styles.actionButtonText}>Afficher remarques</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </>
-                ) : (
-                  <>
-                    {mealPlan && mealPlan.id ? (
-                      <ScrollView style={styles.planScrollView}>
-                        <View style={styles.planContainer}>
-                          <Text style={styles.planFieldTitle}>Plan pour {mealPlan.username}</Text>
-                          <View style={styles.planFieldCard}>
-                            <Text style={styles.planFieldLabel}> Breakfast :  <Ionicons name="cafe" size={20} color="brown" /></Text>
-                           
-                            <Text style={styles.planFieldValue}>{mealPlan.breakfast}</Text>
-                          </View>
-                          <View style={styles.planFieldCard}>
-                            <Text style={styles.planFieldLabel}>Lunch :  <Ionicons name="restaurant" size={20} color="green" /> 
-                              </Text>
-                            <Text style={styles.planFieldValue}>{mealPlan.lunch}</Text>
-                          </View>
-                          <View style={styles.planFieldCard}>
-                            <Text style={styles.planFieldLabel}>
-                             Dinner :  <Ionicons name="restaurant" size={20} color="blue" /></Text>
-                            <Text style={styles.planFieldValue}>{mealPlan.dinner}</Text>
-                          </View>
-                          <View style={styles.planFieldCard}>
-                            <Text style={styles.planFieldLabel}>
-                            Snacks :  <Ionicons name="fast-food" size={20} color="orange" /> </Text>
-                            <Text style={styles.planFieldValue}>{mealPlan.snacks}</Text>
-                          </View>
-                          <View style={styles.planFieldCard}>
-                            <Text style={styles.planFieldLabel}>Sport :  <Ionicons name="barbell" size={20} color="purple" />
-                          </Text>
-                            <Text style={styles.planFieldValue}>{mealPlan.sport}</Text>
-                          </View>
-                          <View style={styles.planFieldCard}>
-                            <Text style={styles.planFieldLabel}>
-                            Water :  <Ionicons name="water" size={16} color="skyblue" /> </Text>
-                            <Text style={styles.planFieldValue}>{mealPlan.water} ml</Text>
-                          </View>
-                        </View>
-                      </ScrollView>
-                    ) : (
-                      <View style={styles.emptyPlanContainer}>
-                        <Text style={styles.emptyPlanText}>
-                          Aucun plan pour cette date.
-                        </Text>
-                      </View>
-                    )}
-                  </>
-                )}
-                <TouchableOpacity style={styles.closeButton} onPress={closeModal}>
-                  <Text style={styles.closeButtonText}>Fermer</Text>
-                </TouchableOpacity>
-              </LinearGradient>
+                <Ionicons name="close-circle" size={28} color="rgba(195, 0, 0, 0.7)" />
+              </TouchableOpacity>
             </View>
-          </View>
-        </Modal>
-
-        {/* Modal d'ajout de plan */}
-        <Modal
-          visible={addPlanModalVisible}
-          transparent
-          animationType="slide"
-          onRequestClose={() => setAddPlanModalVisible(false)}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <LinearGradient
-                colors={['#f0f4ff', '#ffffff']}
-                style={styles.modalGradient}
-              >
-                <Text style={styles.modalTitle}>Ajouter un plan</Text>
-                <ScrollView style={styles.addPlanScrollView}>
-                  <Text style={styles.inputLabel}>Date du plan (YYYY-MM-DD) :</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    placeholder="Ex : 2025-04-10"
-                    placeholderTextColor="#9AA5B1"
-                    value={addPlanDate}
-                    onChangeText={setAddPlanDate}
-                  />
-                  
-                  <Text style={styles.inputLabel}>Nom d'utilisateur :</Text>
-                  <View style={styles.pickerContainer}>
-                    <Picker
-                      selectedValue={addPlanUsername}
-                      style={styles.picker}
-                      onValueChange={(itemValue) => setAddPlanUsername(itemValue)}
-                    >
-                      <Picker.Item label="Sélectionnez un utilisateur" value="" />
-                      {invitations
-                        .filter((invitation, index, self) =>
-                          index === self.findIndex((i) => i.sender?.id === invitation.sender?.id)
-                        )
-                        .map((invitation: any) => (
-                          <Picker.Item
-                            key={invitation.id}
-                            label={invitation.sender?.username || `Invitation #${invitation.id}`}
-                            value={invitation.sender?.username || invitation.id}
-                          />
-                        ))}
-                    </Picker>
-                  </View>
-                  
-                  <Text style={styles.inputLabel}>Commentaire (remarque) :</Text>
-                  <TextInput
-                    style={[styles.textInput, styles.multilineInput]}
-                    placeholder="Ex : Plan nutritionnel du jour"
-                    placeholderTextColor="#9AA5B1"
-                    value={addPlanComment}
-                    onChangeText={setAddPlanComment}
-                    multiline={true}
-                    numberOfLines={4}
-                  />
-                </ScrollView>
-                
-                <View style={styles.modalButtonContainer}>
-                  <TouchableOpacity 
-                    style={[styles.actionButton, { backgroundColor: COLORS.accent }]} 
-                    onPress={handleAddPlan}
+            
+            {targetUserId === null ? (
+              <View style={styles.sectionContainer}>
+                <Text style={styles.sectionTitle}>Sélection de l'utilisateur</Text>
+                <View style={styles.pickerContainer}>
+                  <Picker
+                    selectedValue={newUsername}
+                    style={styles.picker}
+                    onValueChange={(itemValue) => setNewUsername(itemValue)}
                   >
-                    <Text style={styles.actionButtonText}>Enregistrer</Text>
+                    <Picker.Item label="Sélectionnez un utilisateur" value="" />
+                    {invitations
+                      .filter((invitation, index, self) =>
+                        index === self.findIndex((i) => i.sender?.id === invitation.sender?.id)
+                      )
+                      .map((invitation: any) => (
+                        <Picker.Item
+                          key={invitation.id}
+                          label={invitation.sender?.username || `Invitation #${invitation.id}`}
+                          value={invitation.sender?.username || invitation.id}
+                        />
+                      ))}
+                  </Picker>
+                </View>
+                <View style={styles.buttonRow}>
+                  <TouchableOpacity
+                    style={styles.modalActionButton}
+                    onPress={resolveUsername}
+                  >
+                    <FontAwesome5 name="user-check" size={16} color="#fff" style={styles.actionButtonIcon} />
+                    <Text style={styles.actionButtonText}>Résoudre</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity 
-                    style={[styles.actionButton, { backgroundColor: COLORS.secondary }]} 
-                    onPress={() => setAddPlanModalVisible(false)}
+                  <TouchableOpacity
+                    style={[styles.modalActionButton, styles.remarksButton]}
+                    onPress={handleShowRemarks}
                   >
-                    <Text style={styles.actionButtonText}>Annuler</Text>
+                    <FontAwesome5 name="clipboard-list" size={16} color="#fff" style={styles.actionButtonIcon} />
+                    <Text style={styles.actionButtonText}>Remarques</Text>
                   </TouchableOpacity>
                 </View>
-              </LinearGradient>
-            </View>
-          </View>
-        </Modal>
-
-        {/* Modal pour afficher les remarques */}
-        <Modal
-          visible={remarksModalVisible}
-          transparent
-          animationType="slide"
-          onRequestClose={() => setRemarksModalVisible(false)}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <LinearGradient
-                colors={['#f0f4ff', '#ffffff']}
-                style={styles.modalGradient}
-              >
-                <Text style={styles.modalTitle}>Remarques pour le {selectedDate}</Text>
-                {remarks && remarks.length > 0 ? (
-                  <ScrollView style={styles.remarksScrollView}>
-                    {remarks.map((item, index) => (
-                      <View key={index} style={styles.remarkItem}>
-                        <View style={styles.remarkHeader}>
-                          <Text style={styles.remarkUsername}>{item.resolvedUsername}</Text>
-                         {/*  <TouchableOpacity
-                            style={styles.deleteButton}
-                            onPress={() => handleDeleteRemark(item.id)}
-                          >
-                            <Text style={styles.deleteButtonText}>Supprimer</Text>
-                          </TouchableOpacity> */}
-                        </View>
-                        <Text style={styles.remarkText}>
-                          {item.remarque || item.description || item.title}
-                        </Text>
+              </View>
+            ) : (
+              <>
+                {mealPlan && mealPlan.id ? (
+                  <ScrollView>
+                    <View style={styles.sectionContainer}>
+                      <View style={styles.sectionHeader}>
+                        <Ionicons name="restaurant-outline" size={20} color="#333" />
+                        <Text style={styles.sectionTitle}>Plan nutritionnel</Text>
                       </View>
-                    ))}
+                      
+                      <View style={styles.planCard}>
+                        <View style={styles.planCardHeader}>
+                          <Ionicons name="person" size={18} color="rgba(195, 0, 0, 0.7)" />
+                          <Text style={styles.planCardCoach}>Pour: {mealPlan.username}</Text>
+                        </View>
+                        
+                        <View style={styles.mealContainer}>
+                          <View style={styles.mealIconContainer}>
+                            <Ionicons name="cafe" size={22} color="#8e6e5d" />
+                          </View>
+                          <View style={styles.mealTextContainer}>
+                            <Text style={styles.mealTitle}>Petit-déjeuner</Text>
+                            <Text style={styles.mealDescription}>{mealPlan.breakfast || "-"}</Text>
+                          </View>
+                        </View>
+                        
+                        <View style={styles.mealContainer}>
+                          <View style={styles.mealIconContainer}>
+                            <MaterialCommunityIcons name="food-turkey" size={22} color="#5d8e5d" />
+                          </View>
+                          <View style={styles.mealTextContainer}>
+                            <Text style={styles.mealTitle}>Déjeuner</Text>
+                            <Text style={styles.mealDescription}>{mealPlan.lunch || "-"}</Text>
+                          </View>
+                        </View>
+                        
+                        <View style={styles.mealContainer}>
+                          <View style={styles.mealIconContainer}>
+                            <Ionicons name="restaurant" size={22} color="#5d5d8e" />
+                          </View>
+                          <View style={styles.mealTextContainer}>
+                            <Text style={styles.mealTitle}>Dîner</Text>
+                            <Text style={styles.mealDescription}>{mealPlan.dinner || "-"}</Text>
+                          </View>
+                        </View>
+                        
+                        <View style={styles.mealContainer}>
+                          <View style={styles.mealIconContainer}>
+                            <MaterialCommunityIcons name="food-apple" size={22} color="#8e5d7b" />
+                          </View>
+                          <View style={styles.mealTextContainer}>
+                            <Text style={styles.mealTitle}>Collations</Text>
+                            <Text style={styles.mealDescription}>{mealPlan.snacks || "-"}</Text>
+                          </View>
+                        </View>
+                        
+                        <View style={styles.extraInfoContainer}>
+                          <View style={styles.extraInfoItem}>
+                            <Ionicons name="barbell" size={18} color="#8e5d5d" />
+                            <Text style={styles.extraInfoText}>{mealPlan.sport || "Aucun sport"}</Text>
+                          </View>
+                          
+                          <View style={styles.extraInfoItem}>
+                            <Feather name="droplet" size={18} color="#5d8e8e" />
+                            <Text style={styles.extraInfoText}>{mealPlan.water || "0"} ml</Text>
+                          </View>
+                        </View>
+                      </View>
+                    </View>
+                    
+                    <View style={styles.modalActions}>
+                      <TouchableOpacity 
+                        style={styles.actionButton}
+                        onPress={handleShowRemarks}
+                      >
+                        <Text style={styles.actionButtonText}>Voir remarques</Text>
+                      </TouchableOpacity>
+                    </View>
                   </ScrollView>
                 ) : (
-                  <View style={styles.emptyRemarksContainer}>
-                    <Text style={styles.emptyRemarksText}>
-                      Aucune remarque trouvée pour cette date.
+                  <View style={styles.emptyStateContainer}>
+                    <Ionicons name="calendar-outline" size={40} color="#cccccc" />
+                    <Text style={styles.emptyStateText}>Aucun plan pour cette date</Text>
+                    
+                   {/*  <TouchableOpacity
+                      style={[styles.modalActionButton, styles.addPlanModalButton]} 
+                      onPress={() => {
+                        setModalVisible(false);
+                        setAddPlanModalVisible(true);
+                        setAddPlanDate(selectedDate);
+                        setAddPlanUsername(newUsername);
+                      }}
+                    >
+                      <Ionicons name="add-circle-outline" size={18} color="#fff" style={styles.actionButtonIcon} />
+                      <Text style={styles.actionButtonText}>Créer un plan</Text>
+                    </TouchableOpacity>
+                     */}
+                    <TouchableOpacity
+                      style={[styles.modalActionButton, styles.remarksModalButton]} 
+                      onPress={handleShowRemarks}
+                    >
+                      <FontAwesome5 name="clipboard-list" size={16} color="#fff" style={styles.actionButtonIcon} />
+                      <Text style={styles.actionButtonText}>Voir remarques</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal d'ajout de plan */}
+      <Modal
+        visible={addPlanModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setAddPlanModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            {/* En-tête avec date et bouton de fermeture */}
+            <View style={styles.modalHeader}>
+              <View style={styles.modalDateContainer}>
+                <Ionicons name="add-circle" size={24} color="rgba(195, 0, 0, 0.7)" />
+                <Text style={styles.modalTitle}>Ajouter une remarque</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.modalCloseIcon}
+                onPress={() => setAddPlanModalVisible(false)}
+              >
+                <Ionicons name="close-circle" size={28} color="rgba(195, 0, 0, 0.7)" />
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.sectionContainer}>
+              <View style={styles.formField}>
+                <Text style={styles.formLabel}>Date du plan :</Text>
+                <TextInput
+                  style={styles.formInput}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor="#9AA5B1"
+                  value={addPlanDate}
+                  onChangeText={setAddPlanDate}
+                />
+              </View>
+              
+              <View style={styles.formField}>
+                <Text style={styles.formLabel}>Utilisateur :</Text>
+                <View style={styles.pickerWrapper}>
+                  <Picker
+                    selectedValue={addPlanUsername}
+                    style={styles.formPicker}
+                    onValueChange={(itemValue) => setAddPlanUsername(itemValue)}
+                  >
+                    <Picker.Item label="Sélectionnez un utilisateur" value="" />
+                    {invitations
+                      .filter((invitation, index, self) =>
+                        index === self.findIndex((i) => i.sender?.id === invitation.sender?.id)
+                      )
+                      .map((invitation: any) => (
+                        <Picker.Item
+                          key={invitation.id}
+                          label={invitation.sender?.username || `Invitation #${invitation.id}`}
+                          value={invitation.sender?.username || invitation.id}
+                        />
+                      ))}
+                  </Picker>
+                </View>
+              </View>
+              
+              <View style={styles.formField}>
+                <Text style={styles.formLabel}>Commentaire :</Text>
+                <TextInput
+                  style={[styles.formInput, styles.formTextarea]}
+                  placeholder="Ajoutez votre commentaire ici..."
+                  placeholderTextColor="#9AA5B1"
+                  value={addPlanComment}
+                  onChangeText={setAddPlanComment}
+                  multiline={true}
+                  numberOfLines={4}
+                />
+              </View>
+              
+              <TouchableOpacity
+                style={styles.submitButton}
+                onPress={handleAddPlan}
+              >
+                <Text style={styles.submitButtonText}>Enregistrer</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal pour afficher les remarques */}
+      <Modal
+        visible={remarksModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setRemarksModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            {/* En-tête avec date et bouton de fermeture */}
+            <View style={styles.modalHeader}>
+              <View style={styles.modalDateContainer}>
+                <FontAwesome5 name="clipboard-list" size={22} color="rgba(195, 0, 0, 0.7)" />
+                <Text style={styles.modalTitle}>Remarques {selectedDate}</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.modalCloseIcon}
+                onPress={() => setRemarksModalVisible(false)}
+              >
+                <Ionicons name="close-circle" size={28} color="rgba(195, 0, 0, 0.7)" />
+              </TouchableOpacity>
+            </View>
+            
+            {remarks && remarks.length > 0 ? (
+              <FlatList
+                data={remarks}
+                keyExtractor={(item, index) => item.id?.toString() || index.toString()}
+                renderItem={({ item }) => (
+                  <View style={styles.remarkCard}>
+                    <View style={styles.remarkCardHeader}>
+                      <View style={styles.remarkUserInfo}>
+                        <Ionicons name="person-circle" size={24} color="rgba(195, 0, 0, 0.7)" />
+                        <Text style={styles.remarkUsername}>{item.resolvedUsername}</Text>
+                      </View>
+                    {/*   <TouchableOpacity
+                        style={styles.deleteRemarkButton}
+                        onPress={() => handleDeleteRemark(item.id)}
+                      >
+                        <Ionicons name="trash-outline" size={22} color="#d00" />
+                      </TouchableOpacity> */}
+                    </View>
+                    <Text style={styles.remarkText}>
+                      {item.remarque || item.description || item.title}
                     </Text>
                   </View>
                 )}
-                <TouchableOpacity 
-                  style={[styles.closeButton, { marginTop: 15 }]} 
-                  onPress={() => setRemarksModalVisible(false)}
+                style={styles.remarksList}
+              />
+            ) : (
+              <View style={styles.emptyStateContainer}>
+                <MaterialCommunityIcons name="clipboard-text-off-outline" size={40} color="#cccccc" />
+                <Text style={styles.emptyStateText}>
+                  Aucune remarque trouvée pour cette date
+                </Text>
+                <TouchableOpacity
+                  style={styles.addRemarkButton}
+                  onPress={() => {
+                    setRemarksModalVisible(false);
+                    setAddPlanModalVisible(true);
+                    setAddPlanDate(selectedDate);
+                  }}
                 >
-                  <Text style={styles.closeButtonText}>Fermer</Text>
+                  <Ionicons name="add-circle-outline" size={16} color="#fff" />
+                  <Text style={styles.addRemarkButtonText}>Ajouter une remarque</Text>
                 </TouchableOpacity>
-              </LinearGradient>
-            </View>
+              </View>
+            )}
           </View>
-        </Modal>
+        </View>
+      </Modal>
 
-        <FooterC />
-      </LinearGradient>
+      <FooterC />
     </View>
   );
 }
@@ -819,37 +1146,89 @@ const { width, height } = Dimensions.get('window');
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: "#fff",
+    padding: 10,
   },
-  gradientBackground: {
-    flex: 1,
-    paddingTop: 50,
+  backButton: {
+    position: 'absolute',
+    top: 14,
+    left: 11,
+    zIndex: 10,
   },
   title: {
-    fontSize: 22,
-    fontWeight: "700",
-    textAlign: "center",
-    marginBottom: 15,
-    color: COLORS.text,
-    textShadowColor: 'rgba(0, 0, 0, 0.1)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 2,
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  calendarContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 15,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 8,
+    overflow: 'hidden',
+    marginHorizontal: 5,
+    marginBottom: 20,
+    top: 50,
+  },
+  customHeaderContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    backgroundColor: '#f9f9f9',
+  },
+  customHeaderTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    textTransform: 'capitalize', 
+  },
+  arrowButton: {
+    padding: 8,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 20,
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  weekdayHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingVertical: 12,
+    backgroundColor: '#f8f9fa',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  weekdayText: {
+    fontSize: 14,
+    color: '#555',
+    fontWeight: '600',
   },
   addPlanButton: {
     position: "absolute",
-    top: 10,
+    top: 14,
     right: 20,
-    backgroundColor: COLORS.background,
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    //backgroundColor: "rgba(195, 0, 0, 0.1)",
+   // width: 50,
+   // height: 50,
+    //borderRadius: 25,
     justifyContent: "center",
     alignItems: "center",
     zIndex: 1,
-  }, 
+   // borderWidth: 2,
+   // borderColor: "rgba(195, 0, 0, 0.2)",
+  },
   addPlanButtonText: {
-    color: "#FFD166",
-    fontSize: 37,
+    color: "rgba(195, 0, 0, 0.7)",
+    fontSize: 32,
     fontWeight: "700",
   },
   loadingContainer: {
@@ -858,115 +1237,213 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginVertical: 20,
   },
-  calendarContainer: {
-    marginHorizontal: 10,
-    borderRadius: 15,
-    overflow: 'hidden',
-    backgroundColor: '#fff',
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    paddingBottom: 10,
-    paddingTop: 15,
-    paddingHorizontal: 15,
-    marginBottom: 15,
-    ...Platform.select({
-      web: {
-        boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)',
-      },
-    }),
-  },
-  calendarTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#344955',
-    textAlign: 'center',
-    marginBottom: 10,
-    ...Platform.select({
-      web: {
-        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
-      },
-      ios: {
-        fontFamily: 'System',
-        fontWeight: "bold",
-      },
-      android: {
-        fontFamily: 'Roboto',
-      },
-    }),},
   legendContainer: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    marginTop: 10,
-    paddingHorizontal: 10,
+    paddingVertical: 15,
+    backgroundColor: '#f8f9fa',
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
   },
   legendItem: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingVertical: 5,
   },
   legendDot: {
     width: 12,
     height: 12,
     borderRadius: 6,
-    marginRight: 5,
+    marginRight: 8,
   },
   legendText: {
-    fontSize: 12,
-    color: COLORS.textLight,
+    fontSize: 13,
+    color: '#555',
+    fontWeight: '500',
+  },
+  calendarHeaderContainer: {
+    flexDirection: 'row', 
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 15,
+    borderRadius: 10,
+    marginBottom: 15,
+    shadowColor: '#000',
+    height: 159,
+    top: 50,
+  },
+  calendarIcon: {
+    width: 188,
+    height: 188,
+    marginRight: 10,
   },
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.6)",
-    justifyContent: "center",
     alignItems: "center",
+    justifyContent: "center",
   },
   modalContent: {
-    width: width * 0.9,
-    maxHeight: height * 0.8,
+    width: "92%",
     backgroundColor: "#fff",
     borderRadius: 20,
+    padding: 0,
+    maxHeight: '85%',
     overflow: 'hidden',
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 10,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 15,
+    elevation: 15,
   },
-  modalGradient: {
-    padding: 20,
-    borderRadius: 20,
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  modalDateContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   modalTitle: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: "700",
-    marginBottom: 20,
-    textAlign: "center",
-    color: "rgba(195, 0, 0, 0.7)",
+    marginLeft: 10,
+    color: '#333',
   },
-  planText: {
-    fontSize: 16,
+  modalCloseIcon: {
+    padding: 2,
+  },
+  sectionContainer: {
+    paddingHorizontal: 15,
+    paddingTop: 15,
+    paddingBottom: 5,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+    paddingHorizontal: 5,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginLeft: 8,
+    color: '#333',
+  },
+  planCard: {
+    backgroundColor: "#ffffff",
+    borderRadius: 14,
     marginBottom: 15,
-    textAlign: "center",
-    color: COLORS.text,
+    padding: 15,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: '#f0f0f0',
+  },
+  planCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f5f5f5',
+  },
+  planCardCoach: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
+    color: '#333',
+  },
+  mealContainer: {
+    flexDirection: 'row',
+    marginBottom: 12,
+    alignItems: 'flex-start',
+  },
+  mealIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#f7f7f7',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  mealTextContainer: {
+    flex: 1,
+  },
+  mealTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#444',
+    marginBottom: 2,
+  },
+  mealDescription: {
+    fontSize: 14,
+    color: '#666',
+  },
+  extraInfoContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#f5f5f5',
+  },
+  extraInfoItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f9f9f9',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  extraInfoText: {
+    marginLeft: 6,
+    fontSize: 14,
+    color: '#555',
+    fontWeight: '500',
+  },
+  emptyStateContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 30,
+    backgroundColor: '#f9f9f9',
+    borderRadius: 12,
+    margin: 15,
+  },
+  emptyStateText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#999',
+    fontWeight: '500',
+    marginBottom: 20,
   },
   pickerContainer: {
     borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 10,
-    marginBottom: 15,
-    backgroundColor: '#fff',
-    elevation: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    borderColor: '#e2e8f0',
+    borderRadius: 12,
+    backgroundColor: '#f8f9fa',
+    marginVertical: 10,
+    overflow: 'hidden',
   },
   picker: {
     height: 50,
     width: '100%',
-    color: COLORS.text,
   },
   buttonRow: {
     flexDirection: 'row',
@@ -974,15 +1451,10 @@ const styles = StyleSheet.create({
     marginVertical: 15,
   },
   actionButton: {
+    backgroundColor: 'rgba(195, 0, 0, 0.7)',
     paddingVertical: 12,
     paddingHorizontal: 20,
     borderRadius: 10,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 3,
-    minWidth: 120,
     alignItems: 'center',
   },
   actionButtonText: {
@@ -990,190 +1462,144 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  planScrollView: {
-    maxHeight: height * 0.5,
-  },
-  planContainer: {
-    borderRadius: 15,
-    padding: 15,
-    marginBottom: 15,
-    backgroundColor: '#fff',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-  },
-  planFieldTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    marginBottom: 15,
-    textAlign: 'center',
-    color: "rgba(195, 0, 0, 0.5)",
-  },
-  planFieldCard: {
-    backgroundColor: '#f7f9fc',
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 10,
-    borderLeftWidth: 4,
-    borderLeftColor: "rgba(195, 0, 0, 0.4)",
-  },
-  planFieldLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 5,
-    color: COLORS.text,
-  },
-  planFieldValue: {
-    fontSize: 16,
-    color: COLORS.text,
-  },
-  emptyPlanContainer: {
-    padding: 20,
+  modalActionButton: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  emptyPlanText: {
-    fontSize: 16,
-    fontStyle: 'italic',
-    color: COLORS.textLight,
-    textAlign: 'center',
-  },
-  closeButton: {
-    alignSelf: "center",
-    marginTop: 10,
+    backgroundColor: 'rgba(195, 0, 0, 0.7)',
     paddingVertical: 12,
-    paddingHorizontal: 30,
-    borderWidth: 1,
-    borderColor: "rgba(195, 0, 0, 0.4)",
-    borderRadius: 10,
-    backgroundColor: 'rgba(195, 0, 0, 0.1)',
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    marginVertical: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
   },
-  closeButtonText: {
-    fontSize: 16,
-    color: "rgba(195, 0, 0, 0.7)",
-    fontWeight: '600',
+  remarksButton: {
+    backgroundColor: '#4A6FFF',
   },
-  addPlanScrollView: {
-    maxHeight: height * 0.4,
+  addPlanModalButton: {
+    backgroundColor: '#4CAF50',
+    marginBottom: 10,
   },
-  inputLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 8,
-    color: COLORS.text,
+  remarksModalButton: {
+    backgroundColor: '#4A6FFF',
   },
-  textInput: {
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 10,
-    padding: 12,
+  actionButtonIcon: {
+    marginRight: 8,
+  },
+  modalActions: {
+    padding: 15,
+    alignItems: 'center',
+  },
+  formField: {
     marginBottom: 15,
-    backgroundColor: '#fff',
-    color: COLORS.text,
-    fontSize: 16,
   },
-  multilineInput: {
-    minHeight: 100,
+  formLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
+  },
+  formInput: {
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 16,
+    backgroundColor: '#f9fafb',
+    color: '#333',
+  },
+  formTextarea: {
+    height: 100,
     textAlignVertical: 'top',
   },
-  modalButtonContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginTop: 15,
+  pickerWrapper: {
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 12,
+    backgroundColor: '#f9fafb',
+    overflow: 'hidden',
   },
-  remarksScrollView: {
-    maxHeight: height * 0.5,
+  formPicker: {
+    height: 50,
+    width: '100%',
   },
-  calendarHeaderContainer: {
-    flexDirection: 'row', 
+  submitButton: {
+    backgroundColor: 'rgba(195, 0, 0, 0.7)',
+    paddingVertical: 14,
+    borderRadius: 12,
     alignItems: 'center',
-  //  backgroundColor: '#FFFFFF',
-    paddingVertical: 12,
-    paddingHorizontal: 15,
-    borderRadius: 10,
-    marginBottom: 15,
-    shadowColor: '#000',
-    height: 159,
-    top:10,
+    marginTop: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
   },
-  
-  // Style pour l'icône du calendrier
-  calendarIcon: {
-    width: 188,
-    height: 188,
-    marginRight: 10,
+  submitButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
-  remarkItem: {
+  remarksList: {
+    padding: 15,
+  },
+  remarkCard: {
     backgroundColor: '#fff',
     borderRadius: 12,
     padding: 15,
     marginBottom: 15,
-    elevation: 2,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
+    elevation: 2,
     borderLeftWidth: 4,
-    borderLeftColor: COLORS.secondary,
+    borderLeftColor: '#FF6B6B',
   },
-  remarkHeader: {
+  remarkCardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 10,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f5f5f5',
+  },
+  remarkUserInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   remarkUsername: {
     fontSize: 16,
-    fontWeight: '700',
-    color: "rgba(195, 0, 0, 0.7)",
+    fontWeight: '600',
+    marginLeft: 8,
+    color: '#333',
   },
   remarkText: {
     fontSize: 15,
-    color: COLORS.text,
+    color: '#555',
     lineHeight: 22,
   },
-  deleteButton: {
-    backgroundColor: COLORS.error,
-    paddingVertical: 5,
-    paddingHorizontal: 10,
-    borderRadius: 6,
+  deleteRemarkButton: {
+    padding: 8,
   },
-  deleteButtonText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  emptyRemarksContainer: {
-    padding: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emptyRemarksText: {
-    fontSize: 16,
-    fontStyle: 'italic',
-    color: COLORS.textLight,
-    textAlign: 'center',
-  },
-  editButton: {
-    backgroundColor: COLORS.primary,
-    paddingVertical: 5,
-    paddingHorizontal: 10,
-    borderRadius: 6,
-    marginRight: 8,
-  },
-  editButtonText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  editModalContainer: {
-    padding: 20,
-  },
-  actionButtonsRow: {
+  addRemarkButton: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginTop: 5,
+    alignItems: 'center',
+    backgroundColor: 'rgba(195, 0, 0, 0.7)',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    marginTop: 15,
+  },
+  addRemarkButtonText: {
+    color: '#fff',
+    marginLeft: 8,
+    fontSize: 15,
+    fontWeight: '600',
   },
 });

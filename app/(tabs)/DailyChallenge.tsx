@@ -815,10 +815,10 @@ const styles = StyleSheet.create({
     maxWidth: "80%",
   },
   statsContainer: {
-    flexDirection: "row",
+    flexDirection: "column",
     backgroundColor: "rgba(255, 255, 255, 0.2)",
     borderRadius: 12,
-    padding: 12,
+    padding: 8,
   },
   statItem: {
     marginHorizontal: 10,

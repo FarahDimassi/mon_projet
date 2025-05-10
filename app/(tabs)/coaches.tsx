@@ -15,6 +15,8 @@ import {
   Platform,
   ScrollView,
   KeyboardAvoidingView,
+  Keyboard,
+  TouchableWithoutFeedback,
 } from "react-native";
 import * as Notifications from 'expo-notifications';
 import { FontAwesome5 } from "@expo/vector-icons";
@@ -158,7 +160,7 @@ export default function Coaches() {
       Toast.show({
         type: "error",
         text1: "Veuillez sélectionner une note.",
-        position: 'top',
+        position: 'bottom',
       });
       return;
     }
@@ -167,7 +169,7 @@ export default function Coaches() {
       Toast.show({
         type: "success",
         text1: "Votre avis a été envoyé !",
-        position: 'top',
+        position: 'bottom',
       });
       setIsRateModalVisible(false);
       const updatedReviews = await getMyReviews();
@@ -177,7 +179,7 @@ export default function Coaches() {
       Toast.show({
         type: "error",
         text1: "Impossible d'envoyer la review.",
-        position: 'top',
+        position: 'bottom',
       });
     }
   };
@@ -579,90 +581,98 @@ export default function Coaches() {
 
       {/* Modal pour ajouter/modifier/supprimer une review */}
       <Modal visible={isRateModalVisible} animationType="slide" transparent={true}>
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            {selectedCoach && (
-              <>
-                <View style={[styles.modalHeader, {backgroundColor: '#fbbf24'}]}>
-                  <Text style={styles.modalTitle}>
-                    {isEditMode
-                      ? `Modifier l'évaluation`
-                      : `Évaluer ${selectedCoach.username}`}
-                  </Text>
-                  <TouchableOpacity 
-                    onPress={() => setIsRateModalVisible(false)}
-                  >
-                    <FontAwesome5 name="times" size={18} color="#fff" />
-                  </TouchableOpacity>
-                </View>
-                
-                <View style={styles.rateCoachHeader}>
-                  <Image 
-                    source={
-                      selectedCoach.photoUrl && selectedCoach.photoUrl.trim().length > 0
-                        ? {
-                            uri: selectedCoach.photoUrl.startsWith("http")
-                              ? selectedCoach.photoUrl.replace("localhost:8081", "192.168.1.139:8080")
-                              : `http://192.168.1.139:8080/${selectedCoach.photoUrl}`
-                          }
-                        : require("../../assets/images/profile.jpg")
-                    } 
-                    style={styles.rateCoachAvatar} 
-                  />
-                  <Text style={styles.rateCoachName}>{selectedCoach.username}</Text>
-                </View>
-                
-                <Text style={styles.ratingLabel}>Votre note :</Text>
-                <View style={styles.starsContainer}>
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <TouchableOpacity key={star} onPress={() => setRating(star)}>
-                      <FontAwesome5
-                        name="star"
-                        solid={star <= rating}
-                        size={36}
-                        color={star <= rating ? "#fbbf24" : "#e5e7eb"}
-                        style={styles.starIcon}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          style={{ flex: 1 }}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+        >
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View style={styles.modalContainer}>
+              <View style={styles.modalContent}>
+                {selectedCoach && (
+                  <>
+                    <View style={[styles.modalHeader, {backgroundColor: '#fbbf24'}]}>
+                      <Text style={styles.modalTitle}>
+                        {isEditMode
+                          ? `Modifier l'évaluation`
+                          : `Évaluer ${selectedCoach.username}`}
+                      </Text>
+                      <TouchableOpacity 
+                        onPress={() => setIsRateModalVisible(false)}
+                      >
+                        <FontAwesome5 name="times" size={18} color="#fff" />
+                      </TouchableOpacity>
+                    </View>
+                    
+                    <View style={styles.rateCoachHeader}>
+                      <Image 
+                        source={
+                          selectedCoach.photoUrl && selectedCoach.photoUrl.trim().length > 0
+                            ? {
+                                uri: selectedCoach.photoUrl.startsWith("http")
+                                  ? selectedCoach.photoUrl.replace("localhost:8081", "192.168.1.139:8080")
+                                  : `http://192.168.1.139:8080/${selectedCoach.photoUrl}`
+                              }
+                            : require("../../assets/images/profile.jpg")
+                        } 
+                        style={styles.rateCoachAvatar} 
                       />
-                    </TouchableOpacity>
-                  ))}
-                </View>
-                
-                <Text style={styles.commentLabel}>Votre commentaire :</Text>
-                <TextInput
-                  value={comment}
-                  onChangeText={setComment}
-                  placeholder="Partagez votre expérience avec ce coach..."
-                  style={styles.commentInput}
-                  multiline
-                  placeholderTextColor="#9ca3af"
-                />
-                
-                <View style={styles.reviewButtonContainer}>
-                  {isEditMode ? (
-                    <>
-                      <TouchableOpacity style={styles.updateButton} onPress={handleUpdateReview}>
-                        <FontAwesome5 name="pen" size={17} color="#fff" style={styles.buttonIcon} />
-                        <Text style={styles.buttonText}>Mettre à jour</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity style={styles.deleteButton} onPress={handleDeleteReview}>
-                        <FontAwesome5 name="trash" size={16} color="#fff" style={styles.buttonIcon} />
-                        <Text style={styles.buttonText}>Supprimer</Text>
-                      </TouchableOpacity>
-                    </>
-                  ) : (
-                    <TouchableOpacity 
-                      style={styles.submitReviewButton} 
-                      onPress={handleCreateReview}
-                    >
-                      <FontAwesome5 name="paper-plane" size={16} color="#fff" style={styles.buttonIcon} />
-                      <Text style={styles.buttonText}>Envoyer mon évaluation</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              </>
-            )}
-          </View>
-        </View>
+                      <Text style={styles.rateCoachName}>{selectedCoach.username}</Text>
+                    </View>
+                    
+                    <Text style={styles.ratingLabel}>Votre note :</Text>
+                    <View style={styles.starsContainer}>
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <TouchableOpacity key={star} onPress={() => setRating(star)}>
+                          <FontAwesome5
+                            name="star"
+                            solid={star <= rating}
+                            size={36}
+                            color={star <= rating ? "#fbbf24" : "#e5e7eb"}
+                            style={styles.starIcon}
+                          />
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                    
+                    <Text style={styles.commentLabel}>Votre commentaire :</Text>
+                    <TextInput
+                      value={comment}
+                      onChangeText={setComment}
+                      placeholder="Partagez votre expérience avec ce coach..."
+                      style={styles.commentInput}
+                      multiline
+                      placeholderTextColor="#9ca3af"
+                    />
+                    
+                    <View style={styles.reviewButtonContainer}>
+                      {isEditMode ? (
+                        <>
+                          <TouchableOpacity style={styles.updateButton} onPress={handleUpdateReview}>
+                            <FontAwesome5 name="pen" size={17} color="#fff" style={styles.buttonIcon} />
+                            <Text style={styles.buttonText}>Mettre à jour</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity style={styles.deleteButton} onPress={handleDeleteReview}>
+                            <FontAwesome5 name="trash" size={16} color="#fff" style={styles.buttonIcon} />
+                            <Text style={styles.buttonText}>Supprimer</Text>
+                          </TouchableOpacity>
+                        </>
+                      ) : (
+                        <TouchableOpacity 
+                          style={styles.submitReviewButton} 
+                          onPress={handleCreateReview}
+                        >
+                          <FontAwesome5 name="paper-plane" size={16} color="#fff" style={styles.buttonIcon} />
+                          <Text style={styles.buttonText}>Envoyer mon évaluation</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  </>
+                )}
+              </View>
+            </View>
+          </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Modal pour envoyer un message */}
@@ -719,7 +729,7 @@ export default function Coaches() {
                       Toast.show({
                         type: "success",
                         text1: "Demande de réinitialisation envoyée !",
-                        position: "top",
+                        position: "bottom",
                       });
                       setInvitationSent(false);
                       setMessageText("");
@@ -728,7 +738,7 @@ export default function Coaches() {
                       Toast.show({
                         type: "error",
                         text1: error.message || "Erreur lors de l'envoi de la demande.",
-                        position: "top",
+                        position: "bottom",
                       });
                     }
                   }}
@@ -1170,6 +1180,7 @@ reviewButtonContainer: {
   flexDirection: "row", // Ajout de cette propriété pour l'alignement horizontal
   gap: 10,
   height: 60,
+  paddingBottom: Platform.OS === "ios" ? 10 : 20,
 },
 submitReviewButton: {
   backgroundColor: "#fbbf24",
@@ -1179,6 +1190,7 @@ submitReviewButton: {
   paddingVertical: 14,
   borderRadius: 12,
   padding:10,
+  //width: "100%",
 },
 
 // Styles pour la modale de message de réinitialisation

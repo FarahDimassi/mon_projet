@@ -14,7 +14,7 @@ const QREEL: React.FC = () => {
         try {
             const userId = await getUserIdFromToken();
             const token = await getToken();
-            const response = await fetch("http://192.168.100.156:8080/api/scannedproducts", {
+            const response = await fetch("http://192.168.1.139:8080/api/scannedproducts", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",

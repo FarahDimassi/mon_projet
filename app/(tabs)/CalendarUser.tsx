@@ -18,7 +18,7 @@ import {
   getUsersById,
   getToken
 } from "../../utils/authService";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons, FontAwesome5, Feather } from "@expo/vector-icons";
 // @ts-ignore
 import { useNavigation } from "expo-router";
 
@@ -228,40 +228,6 @@ export default function CalendarScreen() {
     }
   };
 
-  // Rendu d'un item (plan) dans la liste de la modal
-  const renderPlanItem = ({ item }: { item: any }) => (
-    <View style={styles.planCard}>
-    <Text style={styles.planText}>Date : {item.date}</Text>
-      <Text style={styles.planText}>
-        <Ionicons name="person" size={16} color="black" /> Coach :{" "}
-        {item.resolvedUsername || "-"}
-      </Text>
-      <Text style={styles.planText}>
-        <Ionicons name="cafe" size={16} color="brown" /> Breakfast :{" "}
-        {item.breakfast || "-"}
-      </Text>
-      <Text style={styles.planText}>
-        <Ionicons name="restaurant" size={16} color="green" /> Lunch :{" "}
-        {item.lunch || "-"}
-      </Text>
-      <Text style={styles.planText}>
-        <Ionicons name="restaurant" size={16} color="blue" /> Dinner :{" "}
-        {item.dinner || "-"}
-      </Text>
-      <Text style={styles.planText}>
-        <Ionicons name="fast-food" size={16} color="orange" /> Snacks :{" "}
-        {item.snacks || "-"}
-      </Text>
-      <Text style={styles.planText}>
-        <Ionicons name="barbell" size={16} color="purple" /> Sport :{" "}
-        {item.sport || "-"}
-      </Text>
-      <Text style={styles.planText}>
-        <Ionicons name="water" size={16} color="skyblue" /> Water :{" "}
-        {item.water || "-"}
-      </Text>
-    </View>
-  );
   const navigation = useNavigation();
 
   // Améliorations du style des boutons de navigation conformément à l'image de référence
@@ -281,12 +247,13 @@ export default function CalendarScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Title header */}  <TouchableOpacity onPress={() => navigation.navigate('reel')}
+      {/* Title header */}  
+      <TouchableOpacity onPress={() => navigation.navigate('reel')}
               style={{
                 position: 'absolute',
                 top: 14,
                 left: 11,
-                zIndex: 10, // pour qu’il soit au-dessus si nécessaire
+                zIndex: 10, // pour qu'il soit au-dessus si nécessaire
               }}>
           <Ionicons name="arrow-back"  size={32} color="#rgba(195, 0, 0, 0.7)" />
         </TouchableOpacity>
@@ -417,6 +384,7 @@ export default function CalendarScreen() {
         </View>
       </View>
 
+      {/* Modal améliorée avec design excellent */}
       <Modal
         visible={modalVisible}
         transparent
@@ -425,43 +393,155 @@ export default function CalendarScreen() {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Plans du {selectedDate}</Text>
-            {plans && plans.length > 0 ? (
-              <FlatList
-                data={plans}
-                keyExtractor={(item, index) =>
-                  item.id?.toString() || index.toString()
-                }
-                renderItem={renderPlanItem}
-              />
-            ) : (
-              <Text>Aucun plan pour cette date.</Text>
-            )}
-               <Text style={[styles.modalTitle, { marginTop: 20 }]}>
-       Produits scannés
-     </Text>
-     {scannedProducts.length > 0 ? (
-       <FlatList
-         data={scannedProducts}
-         keyExtractor={(item, idx) => item.id?.toString() ?? idx.toString()}
-         renderItem={({ item }) => (
-           <View style={styles.planCard}>
-             <Text style={styles.planText}>Produit : {item.productName}</Text>
-             <Text style={styles.planText}>Calories : {item.calories}</Text>
-             {/* ajoutez d’autres champs si besoin */}
-           </View>
-         )}
-       />
-     ) : (
-       <Text>Aucun produit scanné.</Text>
-     )}
+            {/* En-tête avec date et bouton de fermeture */}
+            <View style={styles.modalHeader}>
+              <View style={styles.modalDateContainer}>
+                <Ionicons name="calendar" size={24} color="rgba(195, 0, 0, 0.7)" />
+                <Text style={styles.modalTitle}>{selectedDate}</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.modalCloseIcon}
+                onPress={() => setModalVisible(false)}
+              >
+                <Ionicons name="close-circle" size={28} color="rgba(195, 0, 0, 0.7)" />
+              </TouchableOpacity>
+            </View>
 
-            <TouchableOpacity
-              style={styles.closeButton}
-              onPress={() => setModalVisible(false)}
-            >
-              <Text style={styles.closeButtonText}>Fermer</Text>
-            </TouchableOpacity>
+            {/* Section Plans */}
+            <View style={styles.sectionContainer}>
+              <View style={styles.sectionHeader}>
+                <Ionicons name="restaurant-outline" size={20} color="#333" />
+                <Text style={styles.sectionTitle}>Plans nutritionnels</Text>
+              </View>
+              
+              {plans && plans.length > 0 ? (
+                <FlatList
+                  data={plans}
+                  keyExtractor={(item, index) => item.id?.toString() || index.toString()}
+                  renderItem={({ item }) => (
+                    <View style={styles.planCard}>
+                      <View style={styles.planCardHeader}>
+                        <Ionicons name="person" size={18} color="rgba(195, 0, 0, 0.7)" />
+                        <Text style={styles.planCardCoach}>Coach: {item.resolvedUsername || "-"}</Text>
+                      </View>
+                      
+                      <View style={styles.mealContainer}>
+                        <View style={styles.mealIconContainer}>
+                          <Ionicons name="cafe" size={22} color="#8e6e5d" />
+                        </View>
+                        <View style={styles.mealTextContainer}>
+                          <Text style={styles.mealTitle}>Petit-déjeuner</Text>
+                          <Text style={styles.mealDescription}>{item.breakfast || "-"}</Text>
+                        </View>
+                      </View>
+                      
+                      <View style={styles.mealContainer}>
+                        <View style={styles.mealIconContainer}>
+                          <MaterialCommunityIcons name="food-turkey" size={22} color="#5d8e5d" />
+                        </View>
+                        <View style={styles.mealTextContainer}>
+                          <Text style={styles.mealTitle}>Déjeuner</Text>
+                          <Text style={styles.mealDescription}>{item.lunch || "-"}</Text>
+                        </View>
+                      </View>
+                      
+                      <View style={styles.mealContainer}>
+                        <View style={styles.mealIconContainer}>
+                          <Ionicons name="restaurant" size={22} color="#5d5d8e" />
+                        </View>
+                        <View style={styles.mealTextContainer}>
+                          <Text style={styles.mealTitle}>Dîner</Text>
+                          <Text style={styles.mealDescription}>{item.dinner || "-"}</Text>
+                        </View>
+                      </View>
+                      
+                      <View style={styles.mealContainer}>
+                        <View style={styles.mealIconContainer}>
+                          <MaterialCommunityIcons name="food-apple" size={22} color="#8e5d7b" />
+                        </View>
+                        <View style={styles.mealTextContainer}>
+                          <Text style={styles.mealTitle}>Collations</Text>
+                          <Text style={styles.mealDescription}>{item.snacks || "-"}</Text>
+                        </View>
+                      </View>
+                      
+                      <View style={styles.extraInfoContainer}>
+                        <View style={styles.extraInfoItem}>
+                          <Ionicons name="barbell" size={18} color="#8e5d5d" />
+                          <Text style={styles.extraInfoText}>{item.sport || "Aucun sport"}</Text>
+                        </View>
+                        
+                        <View style={styles.extraInfoItem}>
+                          <Feather name="droplet" size={18} color="#5d8e8e" />
+                          <Text style={styles.extraInfoText}>{item.water || "0"} </Text>
+                        </View>
+                      </View>
+                    </View>
+                  )}
+                  style={styles.plansList}
+                />
+              ) : (
+                <View style={styles.emptyStateContainer}>
+                  <Ionicons name="calendar-outline" size={40} color="#cccccc" />
+                  <Text style={styles.emptyStateText}>Aucun plan pour cette date</Text>
+                </View>
+              )}
+            </View>
+
+            {/* Section Produits scannés */}
+            <View style={styles.sectionContainer}>
+              <View style={styles.sectionHeader}>
+                <Ionicons name="scan-outline" size={20} color="#333" />
+                <Text style={styles.sectionTitle}>Produits scannés</Text>
+              </View>
+              
+              {scannedProducts.length > 0 ? (
+                <FlatList
+                  data={scannedProducts}
+                  keyExtractor={(item, idx) => item.id?.toString() ?? idx.toString()}
+                  renderItem={({ item }) => (
+                    <View style={styles.productCard}>
+                      <View style={styles.productImageContainer}>
+                        <FontAwesome5 name="shopping-basket" size={24} color="#777" />
+                      </View>
+                      <View style={styles.productDetails}>
+                        <Text style={styles.productName}>{item.productName}</Text>
+                        <View style={styles.nutritionFacts}>
+                          <View style={styles.nutritionItem}>
+                            <MaterialCommunityIcons name="fire" size={16} color="#ff6b6b" />
+                            <Text style={styles.nutritionText}>{item.calories} kcal</Text>
+                          </View>
+                          {item.protein && (
+                            <View style={styles.nutritionItem}>
+                              <MaterialCommunityIcons name="arm-flex" size={16} color="#82c91e" />
+                              <Text style={styles.nutritionText}>{item.protein}g</Text>
+                            </View>
+                          )}
+                          {item.fat && (
+                            <View style={styles.nutritionItem}>
+                              <FontAwesome5 name="oil-can" size={14} color="#fcc419" />
+                              <Text style={styles.nutritionText}>{item.fat}g</Text>
+                            </View>
+                          )}
+                          {item.carbs && (
+                            <View style={styles.nutritionItem}>
+                              <MaterialCommunityIcons name="bread-slice" size={16} color="#ff922b" />
+                              <Text style={styles.nutritionText}>{item.carbs}g</Text>
+                            </View>
+                          )}
+                        </View>
+                      </View>
+                    </View>
+                  )}
+                  style={styles.productsList}
+                />
+              ) : (
+                <View style={styles.emptyStateContainer}>
+                  <MaterialCommunityIcons name="barcode-off" size={40} color="#cccccc" />
+                  <Text style={styles.emptyStateText}>Aucun produit scanné</Text>
+                </View>
+              )}
+            </View>
           </View>
         </View>
       </Modal>
@@ -470,6 +550,7 @@ export default function CalendarScreen() {
 }
 
 // ------ Styles ------
+// Suite des styles pour CalendarScreen
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -570,66 +651,22 @@ const styles = StyleSheet.create({
     color: '#555',
     fontWeight: '500',
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  modalContent: {
-    width: "90%",
-    backgroundColor: "#fff",
-    borderRadius: 10,
-    padding: 20,
-    maxHeight: '80%',
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    marginBottom: 10,
-    textAlign: "center",
-  },
-  planCard: {
-    backgroundColor: "#f0f0f0",
-    padding: 15,
-    borderRadius: 8,
-    marginBottom: 10,
-  },
-  planText: {
-    fontSize: 16,
-    marginBottom: 4,
-  },
-  closeButton: {
-    marginTop: 20,
-    backgroundColor: "rgba(195, 0, 0, 0.5)",
-    padding: 10,
-    borderRadius: 5,
-    alignItems: "center",
-  },
-  closeButtonText: {
-    color: "#fff",
-    fontSize: 16,
-  },
   calendarHeaderContainer: {
     flexDirection: 'row', 
     alignItems: 'center',
-  //  backgroundColor: '#FFFFFF',
     paddingVertical: 12,
     paddingHorizontal: 15,
     borderRadius: 10,
     marginBottom: 15,
     shadowColor: '#000',
     height: 159,
-    top:10,
+    top: 10,
   },
-  
-  // Style pour l'icône du calendrier
   calendarIcon: {
     width: 188,
     height: 188,
     marginRight: 10,
   },
-  // Style amélioré pour l'en-tête du mois conforme à l'image de référence
   customHeaderContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -638,14 +675,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     backgroundColor: '#f9f9f9',
   },
-  
   customHeaderTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
     textTransform: 'capitalize', 
   },
-  
   arrowButton: {
     padding: 8,
     backgroundColor: '#f0f0f0',
@@ -655,5 +690,344 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
- 
+  
+  // Styles pour la modal améliorée
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalContent: {
+    width: "92%",
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    padding: 0,
+    maxHeight: '85%',
+    overflow: 'hidden',
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 10,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 15,
+    elevation: 15,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  modalDateContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    marginLeft: 10,
+    color: '#333',
+  },
+  modalCloseIcon: {
+    padding: 2,
+  },
+  sectionContainer: {
+    paddingHorizontal: 15,
+    paddingTop: 15,
+    paddingBottom: 5,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+    paddingHorizontal: 5,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginLeft: 8,
+    color: '#333',
+  },
+  plansList: {
+    maxHeight: 280,
+  },
+  planCard: {
+    backgroundColor: "#ffffff",
+    borderRadius: 14,
+    marginBottom: 15,
+    padding: 15,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: '#f0f0f0',
+  },
+  planCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f5f5f5',
+  },
+  planCardCoach: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
+    color: '#333',
+  },
+  mealContainer: {
+    flexDirection: 'row',
+    marginBottom: 12,
+    alignItems: 'flex-start',
+  },
+  mealIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#f7f7f7',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  mealTextContainer: {
+    flex: 1,
+  },
+  mealTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#444',
+    marginBottom: 2,
+  },
+  mealDescription: {
+    fontSize: 14,
+    color: '#666',
+  },
+  extraInfoContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#f5f5f5',
+  },
+  extraInfoItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f9f9f9',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  extraInfoText: {
+    marginLeft: 6,
+    fontSize: 14,
+    color: '#555',
+    fontWeight: '500',
+  },
+  
+  // Styles pour les produits scannés
+  productsList: {
+    maxHeight: 220,
+  },
+  emptyStateContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 30,
+    backgroundColor: '#f9f9f9',
+    borderRadius: 12,
+    marginBottom: 15,
+  },
+  emptyStateText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#999',
+    fontWeight: '500',
+  },
+  productCard: {
+    flexDirection: 'row',
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    marginBottom: 10,
+    padding: 12,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#f0f0f0',
+  },
+  productImageContainer: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#f7f7f7',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  productDetails: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  productName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#444',
+    marginBottom: 6,
+  },
+  nutritionFacts: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 4,
+  },
+  nutritionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f0f0f0',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    marginRight: 8,
+    marginBottom: 5,
+  },
+  nutritionText: {
+    fontSize: 12,
+    marginLeft: 4,
+    color: '#555',
+    fontWeight: '500',
+  },
+  // Styles additionnels pour améliorer l'interface
+  modalContentScrollView: {
+    paddingBottom: 20,
+  },
+  planCardShadow: {
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 3,
+    },
+    shadowOpacity: 0.12,
+    shadowRadius: 5,
+    elevation: 4,
+  },
+  mealIconHighlight: {
+    borderWidth: 2,
+    borderColor: 'rgba(195, 0, 0, 0.2)',
+  },
+  nutritionSummary: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    backgroundColor: '#f9f9f9',
+    borderRadius: 10,
+    padding: 12,
+    marginTop: 10,
+    marginBottom: 15,
+  },
+  nutritionSummaryItem: {
+    alignItems: 'center',
+  },
+  nutritionSummaryValue: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  nutritionSummaryLabel: {
+    fontSize: 12,
+    color: '#777',
+    marginTop: 2,
+  },
+  productBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: 'rgba(195, 0, 0, 0.7)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  productBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  sectionDivider: {
+    height: 8,
+    backgroundColor: '#f5f5f5',
+    marginVertical: 10,
+    borderRadius: 4,
+  },
+  scanButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(195, 0, 0, 0.7)',
+    borderRadius: 25,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    marginTop: 10,
+    marginBottom: 15,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  scanButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 16,
+    marginLeft: 8,
+  },
+  modalFooter: {
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+    paddingVertical: 15,
+    paddingHorizontal: 20,
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+  },
+  footerButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  footerButtonPrimary: {
+    backgroundColor: 'rgba(195, 0, 0, 0.7)',
+  },
+  footerButtonSecondary: {
+    backgroundColor: '#f0f0f0',
+    marginRight: 10,
+  },
+  footerButtonText: {
+    fontWeight: '600',
+    fontSize: 14,
+    marginLeft: 5,
+  },
+  footerButtonTextPrimary: {
+    color: '#fff',
+  },
+  footerButtonTextSecondary: {
+    color: '#333',
+  }
 });

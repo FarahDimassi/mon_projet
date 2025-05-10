@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   View,
   Text,
@@ -10,8 +10,7 @@ import {
 } from "react-native";
 import { Calendar } from "react-native-calendars";
 import { getUserIdFromToken, getToken, getUsersById } from "../../utils/authService";
-import { Ionicons } from "@expo/vector-icons";
-import foodIcon from "../../assets/images/food.png";
+import { Ionicons, MaterialCommunityIcons, FontAwesome5, Feather } from "@expo/vector-icons";
 // @ts-ignore
 import { useNavigation } from "expo-router";
 
@@ -21,7 +20,9 @@ export default function CalendarUserIA() {
   const [plans, setPlans] = useState<any[]>([]);
   const [userId, setUserId] = useState<number | null>(null);
   const [scannedProducts, setScannedProducts] = useState<any[]>([]);
-  const [markedDates, setMarkedDates] = useState({});
+  const [markedDates, setMarkedDates] = useState<{[date: string]: any}>({});
+  const [currentMonth, setCurrentMonth] = useState("");
+  const calendarRef = useRef(null);
 
   // Récupération de l'ID utilisateur
   useEffect(() => {
@@ -35,18 +36,21 @@ export default function CalendarUserIA() {
     })();
   }, []);
 
-  // Exemple de dates marquées pour correspondre à l'image
+  // Initialiser avec le mois actuel
   useEffect(() => {
-    // Simulation de dates avec différents états
     const today = new Date();
-    const year = today.getFullYear();
-    const month = (today.getMonth() + 1).toString().padStart(2, '0');
+    const monthName = today.toLocaleString('default', { month: 'long' });
+    setCurrentMonth(`${monthName} ${today.getFullYear()}`);
+    
+    // Initialiser les dates marquées
+    const currentYear = today.getFullYear();
+    const currentMonth = (today.getMonth() + 1).toString().padStart(2, '0');
     
     // Exemple de dates marquées
     const marked = {
-      [`${year}-${month}-16`]: { selected: true, selectedColor: 'rgba(195, 0, 0, 0.5)' },
-      [`${year}-${month}-03`]: { marked: true, dotColor: '#FF5252' },
-      [`${year}-${month}-08`]: { marked: true, dotColor: '#4CAF50' },
+      [`${currentYear}-${currentMonth}-16`]: { marked: true, dotColor: '#2ecc71' },
+      [`${currentYear}-${currentMonth}-03`]: { marked: true, dotColor: '#2ecc71' },
+      [`${currentYear}-${currentMonth}-08`]: { marked: true, dotColor: '#2ecc71' },
     };
     
     setMarkedDates(marked);
@@ -54,7 +58,7 @@ export default function CalendarUserIA() {
 
   const fetchScannedProducts = async (userId: number, date: string) => {
     try {
-      setScannedProducts([]); // ✅ Vide les anciens résultats
+      setScannedProducts([]); // Vide les anciens résultats
       const token = await getToken();
       const response = await fetch(
         `http://192.168.1.139:8080/api/scannedproducts/user/${userId}/date/${date}`,
@@ -76,7 +80,19 @@ export default function CalendarUserIA() {
   };
 
   const onDayPress = async (day: { dateString: string }) => {
-    setSelectedDate(day.dateString);
+    const newDate = day.dateString;
+    setSelectedDate(newDate);
+    
+    // Mettre à jour les dates marquées avec la nouvelle sélection
+    setMarkedDates(prev => ({
+      ...prev,
+      [newDate]: {
+        ...(prev[newDate] || {}),
+        selected: true,
+        selectedColor: 'rgba(195, 0, 0, 0.7)',
+      }
+    }));
+    
     if (!userId) return;
 
     try {
@@ -99,15 +115,48 @@ export default function CalendarUserIA() {
       }));
 
       setPlans(formattedPlans);
-      setScannedProducts([]); // ✅ Vide les anciens produits scannés
       await fetchScannedProducts(userId, day.dateString);
-      
     } catch (error) {
       console.error("Erreur récupération plan :", error);
       setPlans([]);
     }
 
     setModalVisible(true);
+  };
+
+  // Navigation entre les mois
+  const goToPreviousMonth = () => {
+    if (calendarRef.current) {
+      // @ts-ignore - La méthode addMonth existe sur l'instance mais n'est pas dans les types
+      calendarRef.current.addMonth(-1);
+    }
+  };
+  
+  const goToNextMonth = () => {
+    if (calendarRef.current) {
+      // @ts-ignore - La méthode addMonth existe sur l'instance mais n'est pas dans les types
+      calendarRef.current.addMonth(1);
+    }
+  };
+  
+  const onMonthChange = (month: any) => {
+    const date = new Date(month.year, month.month - 1);
+    const monthName = date.toLocaleString('default', { month: 'long' });
+    setCurrentMonth(`${monthName} ${month.year}`);
+  };
+
+  const renderCustomHeader = () => {
+    return (
+      <View style={styles.customHeaderContainer}>
+        <TouchableOpacity onPress={goToPreviousMonth} style={styles.arrowButton}>
+          <Ionicons name="chevron-back" size={24} color="#000" />
+        </TouchableOpacity>
+        <Text style={styles.customHeaderTitle}>{currentMonth}</Text>
+        <TouchableOpacity onPress={goToNextMonth} style={styles.arrowButton}>
+          <Ionicons name="chevron-forward" size={24} color="#000" />
+        </TouchableOpacity>
+      </View>
+    );
   };
 
   async function getDailyPlanByDate(userId: number, date: string) {
@@ -131,46 +180,8 @@ export default function CalendarUserIA() {
     return await response.json();
   }
 
-  const renderPlanItem = ({ item }: { item: any }) => (
-    <View style={styles.planCard}>
-      <Text style={styles.planText}>Date : {item.date}</Text>
-      <Text style={styles.planText}>
-        <Ionicons name="person" size={16} color="black" /> Coach : {item.resolvedUsername}
-      </Text>
-      <Text style={styles.planText}>
-        <Ionicons name="cafe" size={16} color="brown" /> Breakfast : {item.breakfast || "-"}
-      </Text>
-      <Text style={styles.planText}>
-        <Ionicons name="restaurant" size={16} color="green" /> Lunch : {item.lunch || "-"}
-      </Text>
-      <Text style={styles.planText}>
-        <Ionicons name="restaurant" size={16} color="blue" /> Dinner : {item.dinner || "-"}
-      </Text>
-      <Text style={styles.planText}>
-        <Ionicons name="fast-food" size={16} color="orange" /> Snacks : {item.snacks || "-"}
-      </Text>
-      <Text style={styles.planText}>
-        <Ionicons name="barbell" size={16} color="purple" /> Sport : {item.sport || "-"}
-      </Text>
-      <Text style={styles.planText}>
-        <Ionicons name="water" size={16} color="skyblue" /> Water : {item.water || "-"} L
-      </Text>
-    </View>
-  );
+  const navigation = useNavigation();
 
-  const renderScannedProduct = ({ item }: { item: any }) => (
-    <View style={styles.productRow}>
-      <Image
-        source={foodIcon} // ✅ Icône locale
-        style={styles.productImage}
-      />
-      <View>
-        <Text style={styles.productName}>{item.productName}</Text>
-        <Text style={styles.productCalories}>{item.calories} kcal</Text>
-      </View>
-    </View>
-  );
-const navigation = useNavigation();
   return (
     <View style={styles.container}>
       <TouchableOpacity onPress={() => navigation.navigate('user')}
@@ -178,86 +189,139 @@ const navigation = useNavigation();
           position: 'absolute',
           top: 14,
           left: 11,
-          zIndex: 10, // pour qu’il soit au-dessus si nécessaire
+          zIndex: 10,
         }}>
-    <Ionicons name="arrow-back"  size={32} color="#rgba(195, 0, 0, 0.7)" />
-  </TouchableOpacity>
-      <View style={styles.headerContainer}>
+        <Ionicons name="arrow-back" size={32} color="rgba(195, 0, 0, 0.7)" />
+      </TouchableOpacity>
+      
+      {/* Header avec icône et titre */}
+      <View style={styles.header}>
         <View style={styles.calendarHeaderContainer}>
-                <Image 
-                  source={require('../../assets/images/calend.png')} 
-                  style={styles.calendarIcon}
-                />
-                <Text style={styles.title}>Calendrier {'\n'} du {(() => {
-                              const [username, setUsername] = React.useState<string | null>(null);
-                
-                              React.useEffect(() => {
-                          const fetchUsername = async () => {
-                            try {
-                              const userId = await getUserIdFromToken();
-                                if (userId) {
-                                const userData = await getUsersById(userId);
-                                setUsername(userData?.username ?? null);
-                                }
-                            } catch (error) {
-                              console.error("Erreur lors de la récupération du nom d'utilisateur:", error);
-                              setUsername("User");
-                            }
-                          };
-                
-                          fetchUsername();
-                              }, []);
-                
-                              return username;
-                            })()} </Text>
-              </View>
-       
+          <Image 
+            source={require('../../assets/images/calend.png')} 
+            style={styles.calendarIcon}
+          />
+          <Text style={styles.title}>Calendrier {'\n'} du {(() => {
+            const [username, setUsername] = React.useState<string | null>(null);
+            
+            React.useEffect(() => {
+              const fetchUsername = async () => {
+                try {
+                  const userId = await getUserIdFromToken();
+                  if (userId) {
+                    const userData = await getUsersById(userId);
+                    setUsername(userData?.username ?? null);
+                  }
+                } catch (error) {
+                  console.error("Erreur lors de la récupération du nom d'utilisateur:", error);
+                  setUsername("User");
+                }
+              };
+              
+              fetchUsername();
+            }, []);
+            
+            return username;
+          })()} </Text>
+        </View>
       </View>
       
-      <Calendar
-        onDayPress={onDayPress}
-        markedDates={{
-          ...markedDates,
-          [selectedDate]: { selected: true, selectedColor: 'rgba(195, 0, 0, 0.3)' },
-        }}
-        theme={{
-          backgroundColor: '#F5F7FA',
-          calendarBackground: '#F5F7FA',
-          textSectionTitleColor: '#333',
-          selectedDayBackgroundColor: 'rgba(195, 0, 0, 0.3)',
-          selectedDayTextColor: '#fff',
-          todayTextColor: 'rgba(195, 0, 0, 0.5)',
-          dayTextColor: '#333',
-          textDisabledColor: '#aaa',
-          dotColor: '#FF5252',
-          selectedDotColor: '#fff',
-          arrowColor: 'rgba(195, 0, 0, 0.5)',
-          monthTextColor: '#333',
-          indicatorColor: 'rgba(195, 0, 0, 0.5)',
-          textDayFontWeight: '400',
-          textMonthFontWeight: 'bold',
-          textDayHeaderFontWeight: 'bold',
-          textDayFontSize: 14,
-          textMonthFontSize: 16,
-          textDayHeaderFontSize: 13
-        }}
-      />
-      
-      <View style={styles.legendContainer}>
-        <View style={styles.legendItem}>
-          <View style={[styles.legendDot, { backgroundColor: '#4285F4' }]} />
-          <Text style={styles.legendText}>Date sélectionnée</Text>
+      {/* Calendar container with shadow */}
+      <View style={styles.calendarContainer}>
+        {/* Custom header for month navigation */}
+        {renderCustomHeader()}
+        
+        {/* Custom weekday header */}
+        <View style={styles.weekdayHeader}>
+          <Text style={styles.weekdayText}>Dim</Text>
+          <Text style={styles.weekdayText}>Lun</Text>
+          <Text style={styles.weekdayText}>Mar</Text>
+          <Text style={styles.weekdayText}>Mer</Text>
+          <Text style={styles.weekdayText}>Jeu</Text>
+          <Text style={styles.weekdayText}>Ven</Text>
+          <Text style={styles.weekdayText}>Sam</Text>
         </View>
-        <View style={styles.legendItem}>
-          <View style={[styles.legendDot, { backgroundColor: '#FF5252' }]} />
-          <Text style={styles.legendText}>Avec remarques</Text>
-        </View>
-        <View style={styles.legendItem}>
-          <View style={[styles.legendDot, { backgroundColor: '#4CAF50' }]} />
-          <Text style={styles.legendText}>Avec plan</Text>
+        
+        <Calendar
+          ref={calendarRef}
+          onDayPress={onDayPress}
+          onMonthChange={onMonthChange}
+          markedDates={markedDates}
+          theme={{
+            calendarBackground: '#ffffff',
+            textSectionTitleColor: '#333',
+            selectedDayBackgroundColor: 'rgba(195, 0, 0, 0.7)',
+            selectedDayTextColor: '#ffffff',
+            todayTextColor: '#3498db',
+            dayTextColor: '#2d4150',
+            textDisabledColor: '#d9e1e8',
+            arrowColor: 'transparent',
+            monthTextColor: 'transparent',
+            indicatorColor: 'rgba(195, 0, 0, 0.7)',
+            textDayFontWeight: '400',
+            textMonthFontWeight: 'bold',
+            textDayHeaderFontWeight: '500',
+            textDayFontSize: 16,
+            textMonthFontSize: 18,
+            textDayHeaderFontSize: 14,
+            'stylesheet.calendar.header': {
+              header: {
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                paddingLeft: 10,
+                paddingRight: 10,
+                alignItems: 'center',
+                height: 0,
+                opacity: 0,
+              },
+              dayHeader: {
+                opacity: 0,
+                height: 0,
+              }
+            },
+            'stylesheet.day.basic': {
+              base: {
+                width: 32,
+                height: 32,
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: 16,
+                marginTop: 4,
+                marginBottom: 4,
+              },
+              today: {
+                backgroundColor: '#f8f8fc',
+                borderWidth: 1,
+                borderColor: 'rgba(195, 0, 0, 0.3)',
+              },
+              selected: {
+                backgroundColor: 'rgba(195, 0, 0, 0.7)',
+                borderRadius: 16,
+              },
+            },
+          }}
+          hideExtraDays={false}
+          enableSwipeMonths={true}
+        />
+        
+        {/* Legend section with improved styling */}
+        <View style={styles.legendContainer}>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendDot, { backgroundColor: 'rgba(195, 0, 0, 0.7)' }]} />
+            <Text style={styles.legendText}>Date sélectionnée</Text>
+          </View>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendDot, { backgroundColor: '#3498db' }]} />
+            <Text style={styles.legendText}>Aujourd'hui</Text>
+          </View>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendDot, { backgroundColor: '#2ecc71' }]} />
+            <Text style={styles.legendText}>Avec plan</Text>
+          </View>
         </View>
       </View>
 
+      {/* Modal améliorée avec design excellent */}
       <Modal
         visible={modalVisible}
         transparent
@@ -266,41 +330,137 @@ const navigation = useNavigation();
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Plan du {selectedDate}</Text>
+            {/* En-tête avec date et bouton de fermeture */}
+            <View style={styles.modalHeader}>
+              <View style={styles.modalDateContainer}>
+                <Ionicons name="calendar" size={24} color="rgba(195, 0, 0, 0.7)" />
+                <Text style={styles.modalTitle}>{selectedDate}</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.modalCloseIcon}
+                onPress={() => setModalVisible(false)}
+              >
+                <Ionicons name="close-circle" size={28} color="rgba(195, 0, 0, 0.7)" />
+              </TouchableOpacity>
+            </View>
 
-            {scannedProducts.length > 0 && (
-              <>
-                <Text style={styles.sectionTitle}>🍽️ Produits Scannés</Text>
-                <FlatList
-                  data={scannedProducts}
-                  keyExtractor={(item, index) => index.toString()}
-                  renderItem={renderScannedProduct}
-                  contentContainerStyle={{ paddingBottom: 10 }}
-                />
-              </>
-            )}
-
-            {plans.length > 0 && (
-              <>
-                <Text style={styles.sectionTitle}>📋 Plan du jour</Text>
+            {/* Section Plans */}
+            <View style={styles.sectionContainer}>
+              <View style={styles.sectionHeader}>
+                <Ionicons name="restaurant-outline" size={20} color="#333" />
+                <Text style={styles.sectionTitle}>Plans nutritionnels</Text>
+              </View>
+              
+              {plans && plans.length > 0 ? (
                 <FlatList
                   data={plans}
                   keyExtractor={(item, index) => item.id?.toString() || index.toString()}
-                  renderItem={renderPlanItem}
-                  contentContainerStyle={{ paddingBottom: 10 }}
+                  renderItem={({ item }) => (
+                    <View style={styles.planCard}>
+                      <View style={styles.planCardHeader}>
+                        <Ionicons name="person" size={18} color="rgba(195, 0, 0, 0.7)" />
+                        <Text style={styles.planCardCoach}>Coach: {item.resolvedUsername || "-"}</Text>
+                      </View>
+                      
+                      <View style={styles.mealContainer}>
+                        <View style={styles.mealIconContainer}>
+                          <Ionicons name="cafe" size={22} color="#8e6e5d" />
+                        </View>
+                        <View style={styles.mealTextContainer}>
+                          <Text style={styles.mealTitle}>Petit-déjeuner</Text>
+                          <Text style={styles.mealDescription}>{item.breakfast || "-"}</Text>
+                        </View>
+                      </View>
+                      
+                      <View style={styles.mealContainer}>
+                        <View style={styles.mealIconContainer}>
+                          <MaterialCommunityIcons name="food-turkey" size={22} color="#5d8e5d" />
+                        </View>
+                        <View style={styles.mealTextContainer}>
+                          <Text style={styles.mealTitle}>Déjeuner</Text>
+                          <Text style={styles.mealDescription}>{item.lunch || "-"}</Text>
+                        </View>
+                      </View>
+                      
+                      <View style={styles.mealContainer}>
+                        <View style={styles.mealIconContainer}>
+                          <Ionicons name="restaurant" size={22} color="#5d5d8e" />
+                        </View>
+                        <View style={styles.mealTextContainer}>
+                          <Text style={styles.mealTitle}>Dîner</Text>
+                          <Text style={styles.mealDescription}>{item.dinner || "-"}</Text>
+                        </View>
+                      </View>
+                      
+                      <View style={styles.mealContainer}>
+                        <View style={styles.mealIconContainer}>
+                          <MaterialCommunityIcons name="food-apple" size={22} color="#8e5d7b" />
+                        </View>
+                        <View style={styles.mealTextContainer}>
+                          <Text style={styles.mealTitle}>Collations</Text>
+                          <Text style={styles.mealDescription}>{item.snacks || "-"}</Text>
+                        </View>
+                      </View>
+                      
+                      <View style={styles.extraInfoContainer}>
+                        <View style={styles.extraInfoItem}>
+                          <Ionicons name="barbell" size={18} color="#8e5d5d" />
+                          <Text style={styles.extraInfoText}>{item.sport || "Aucun sport"}</Text>
+                        </View>
+                        
+                        <View style={styles.extraInfoItem}>
+                          <Feather name="droplet" size={18} color="#5d8e8e" />
+                          <Text style={styles.extraInfoText}>{item.water || "0"} L</Text>
+                        </View>
+                      </View>
+                    </View>
+                  )}
+                  style={styles.plansList}
                 />
-              </>
-            )}
+              ) : (
+                <View style={styles.emptyStateContainer}>
+                  <Ionicons name="calendar-outline" size={40} color="#cccccc" />
+                  <Text style={styles.emptyStateText}>Aucun plan pour cette date</Text>
+                </View>
+              )}
+            </View>
 
-            {plans.length === 0 && scannedProducts.length === 0 && (
-              <Text style={{ textAlign: "center", marginVertical: 20 }}>
-                Aucun contenu disponible pour cette date.
-              </Text>
-            )}
-
-            <TouchableOpacity style={styles.closeButton} onPress={() => setModalVisible(false)}>
-              <Text style={styles.closeButtonText}>Fermer</Text>
-            </TouchableOpacity>
+            {/* Section Produits scannés */}
+            <View style={styles.sectionContainer}>
+              <View style={styles.sectionHeader}>
+                <Ionicons name="scan-outline" size={20} color="#333" />
+                <Text style={styles.sectionTitle}>Produits scannés</Text>
+              </View>
+              
+              {scannedProducts.length > 0 ? (
+                <FlatList
+                  data={scannedProducts}
+                  keyExtractor={(item, idx) => item.id?.toString() ?? idx.toString()}
+                  renderItem={({ item }) => (
+                    <View style={styles.productCard}>
+                      <View style={styles.productImageContainer}>
+                        <FontAwesome5 name="shopping-basket" size={24} color="#777" />
+                      </View>
+                      <View style={styles.productDetails}>
+                        <Text style={styles.productName}>{item.productName}</Text>
+                        <View style={styles.nutritionFacts}>
+                          <View style={styles.nutritionItem}>
+                            <MaterialCommunityIcons name="fire" size={16} color="#ff6b6b" />
+                            <Text style={styles.nutritionText}>{item.calories} kcal</Text>
+                          </View>
+                        </View>
+                      </View>
+                    </View>
+                  )}
+                  style={styles.productsList}
+                />
+              ) : (
+                <View style={styles.emptyStateContainer}>
+                  <MaterialCommunityIcons name="barcode-off" size={40} color="#cccccc" />
+                  <Text style={styles.emptyStateText}>Aucun produit scanné</Text>
+                </View>
+              )}
+            </View>
           </View>
         </View>
       </Modal>
@@ -312,110 +472,327 @@ const navigation = useNavigation();
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F5F7FA",
+    backgroundColor: "#fff",
     padding: 10,
   },
-  headerContainer: {
-    marginVertical: 10,
-    padding: 10,
-  },
-  calendarTitle: {
-    fontSize: 24,
-    fontWeight: "bold",
-    textAlign: "center",
-    color: "#333",
-    marginBottom: 5,
-  },
-  monthNavigation: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    marginVertical: 10,
-  },
-  monthYearText: {
-    fontSize: 18,
-    fontWeight: "500",
-    color: "#333",
-    paddingHorizontal: 20,
-  },
-  navArrow: {
-    fontSize: 20,
-    color: "rgba(195, 0, 0, 0.5)",
-    fontWeight: "bold",
-  },
-  legendContainer: {
-    flexDirection: "row",
-    justifyContent: "center",
-    paddingVertical: 10,
+  header: {
+    alignItems: 'center',
+    marginBottom: 15,
     marginTop: 10,
   },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  calendarContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 15,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 8,
+    overflow: 'hidden',
+    marginHorizontal: 5,
+    marginBottom: 20,
+  },
+  customHeaderContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    backgroundColor: '#f9f9f9',
+  },
+  customHeaderTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    textTransform: 'capitalize', 
+  },
+  arrowButton: {
+    padding: 8,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 20,
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  weekdayHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingVertical: 12,
+    backgroundColor: '#f8f9fa',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  weekdayText: {
+    fontSize: 14,
+    color: '#555',
+    fontWeight: '600',
+  },
+  legendContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingVertical: 15,
+    backgroundColor: '#f8f9fa',
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+  },
   legendItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginHorizontal: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 5,
   },
   legendDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginRight: 5,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginRight: 8,
   },
   legendText: {
-    fontSize: 12,
-    color: "#666",
+    fontSize: 13,
+    color: '#555',
+    fontWeight: '500',
+  },
+  calendarHeaderContainer: {
+    flexDirection: 'row', 
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 15,
+    borderRadius: 10,
+    marginBottom: 15,
+    shadowColor: '#000',
+    height: 159,
+    top: 10,
+  },
+  calendarIcon: {
+    width: 188,
+    height: 188,
+    marginRight: 10,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
+    backgroundColor: "rgba(0,0,0,0.6)",
     alignItems: "center",
     justifyContent: "center",
   },
   modalContent: {
-    width: "90%",
+    width: "92%",
     backgroundColor: "#fff",
-    borderRadius: 10,
-    padding: 20,
-    maxHeight: "90%",
+    borderRadius: 20,
+    padding: 0,
+    maxHeight: '85%',
+    overflow: 'hidden',
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 10,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 15,
+    elevation: 15,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  modalDateContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   modalTitle: {
     fontSize: 20,
-    fontWeight: "bold",
-    marginBottom: 10,
-    textAlign: "center",
+    fontWeight: "700",
+    marginLeft: 10,
+    color: '#333',
   },
-  planCard: {
-    backgroundColor: "#f0f0f0",
-    padding: 15,
-    borderRadius: 8,
-    marginBottom: 10,
+  modalCloseIcon: {
+    padding: 2,
   },
-  planText: {
-    fontSize: 16,
-    marginBottom: 4,
+  sectionContainer: {
+    paddingHorizontal: 15,
+    paddingTop: 15,
+    paddingBottom: 5,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+    paddingHorizontal: 5,
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: "bold",
-    marginVertical: 10,
+    fontWeight: '600',
+    marginLeft: 8,
+    color: '#333',
   },
-  productRow: {
-    flexDirection: "row",
-    alignItems: "center",
+  plansList: {
+    maxHeight: 280,
+  },
+  planCard: {
+    backgroundColor: "#ffffff",
+    borderRadius: 14,
+    marginBottom: 15,
+    padding: 15,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: '#f0f0f0',
+  },
+  planCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: 10,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f5f5f5',
   },
-  productImage: {
-    width: 30,
-    height: 30,
-    borderRadius: 6,
+  planCardCoach: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
+    color: '#333',
+  },
+  mealContainer: {
+    flexDirection: 'row',
+    marginBottom: 12,
+    alignItems: 'flex-start',
+  },
+  mealIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#f7f7f7',
+    justifyContent: 'center',
+    alignItems: 'center',
     marginRight: 10,
-    backgroundColor: "#eee",
+  },
+  mealTextContainer: {
+    flex: 1,
+  },
+  mealTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#444',
+    marginBottom: 2,
+  },
+  mealDescription: {
+    fontSize: 14,
+    color: '#666',
+  },
+  extraInfoContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#f5f5f5',
+  },
+  extraInfoItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f9f9f9',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  extraInfoText: {
+    marginLeft: 6,
+    fontSize: 14,
+    color: '#555',
+    fontWeight: '500',
+  },
+  productsList: {
+    maxHeight: 220,
+  },
+  emptyStateContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 30,
+    backgroundColor: '#f9f9f9',
+    borderRadius: 12,
+    marginBottom: 15,
+  },
+  emptyStateText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#999',
+    fontWeight: '500',
+  },
+  productCard: {
+    flexDirection: 'row',
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    marginBottom: 10,
+    padding: 12,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#f0f0f0',
+  },
+  productImageContainer: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#f7f7f7',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  productDetails: {
+    flex: 1,
+    justifyContent: 'center',
   },
   productName: {
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: '600',
+    color: '#444',
+    marginBottom: 6,
   },
-  productCalories: {
-    color: "#888",
+  nutritionFacts: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 4,
+  },
+  nutritionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f0f0f0',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    marginRight: 8,
+    marginBottom: 5,
+  },
+  nutritionText: {
+    fontSize: 12,
+    marginLeft: 4,
+    color: '#555',
+    fontWeight: '500',
   },
   closeButton: {
     marginTop: 20,
@@ -427,29 +804,5 @@ const styles = StyleSheet.create({
   closeButtonText: {
     color: "#fff",
     fontSize: 16,
-  },
-  calendarHeaderContainer: {
-    flexDirection: 'row', 
-    alignItems: 'center',
-  //  backgroundColor: '#FFFFFF',
-    paddingVertical: 12,
-    paddingHorizontal: 15,
-    borderRadius: 10,
-    marginBottom: 15,
-    shadowColor: '#000',
-    height: 159,
-    top:10,
-  },
-  
-  // Style pour l'icône du calendrier
-  calendarIcon: {
-    width: 188,
-    height: 188,
-    marginRight: 10,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
   },
 });
