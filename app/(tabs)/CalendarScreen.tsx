@@ -16,7 +16,7 @@ import {
 } from "react-native";
 import { Calendar, LocaleConfig } from "react-native-calendars";
 import { Picker } from "@react-native-picker/picker";
-
+import { API_URL } from "@/utils/config";
 // Type pour représenter l'objet date renvoyé par react-native-calendars
 type DateObject = {
   dateString: string;
@@ -67,7 +67,7 @@ LocaleConfig.locales['fr'] = {
 LocaleConfig.defaultLocale = 'fr';
 
 // API URL
-const API_URL = "http://192.168.1.139:8080";
+
 
 // Fonction pour récupérer les remarques pour une date
 async function getCalendarPlanRemarks(date: string, coachId: number): Promise<any[]> {

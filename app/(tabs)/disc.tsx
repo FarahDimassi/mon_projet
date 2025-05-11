@@ -5,9 +5,10 @@ import { Client, IMessage } from "@stomp/stompjs";
 // @ts-ignore
 import { useLocalSearchParams } from "expo-router";
 import { getUserIdFromToken, getOrCreateConversation, getMessages } from "../../utils/authService";
+import { API_URL } from "@/utils/config";
 
-const WS_URL = "http://192.168.1.139:8080/ws";
-const API_BASE_URL = "http://192.168.1.139:8080/api/conversations";
+const WS_URL = `${API_URL}/ws`;
+const API_BASE_URL = `${API_URL}/api/conversations`;
 
 interface ChatMessage {
   id: number;

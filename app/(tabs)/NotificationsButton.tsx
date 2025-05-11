@@ -5,8 +5,9 @@ import { Ionicons } from '@expo/vector-icons';
 // @ts-ignore
 import { useRouter } from 'expo-router';
 import { getUserIdFromToken, getToken } from '../../utils/tokenUtils';
+import { API_URL } from '@/utils/config';
 
-const BASE_URL = 'http://192.168.100.135:8080/api/notifications';
+const BASE_URL = `${API_URL}/api/notifications`;
 
 export function NotificationsButton() {
   const router = useRouter();

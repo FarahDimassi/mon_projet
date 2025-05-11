@@ -35,6 +35,7 @@ import NavbarCoach from "@/components/NavbarCoach";
 
 // Import useRouter pour la navigation
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { API_URL } from "@/utils/config";
 
 // Types
 interface ChatContact {
@@ -137,7 +138,7 @@ const guessMime = (ext: string) => {
     if (!token || !userId) return;
     const fetchContacts = async () => {
       try {
-        const url = `http://192.168.1.139:8080/api/chat/contacts?userId=${userId}`;
+        const url = ` ${API_URL}/api/chat/contacts?userId=${userId}`;
         const response = await fetch(url, {
           method: "GET",
           headers: {
@@ -226,7 +227,7 @@ const guessMime = (ext: string) => {
 
     const fetchHistory = async () => {
       try {
-        const url = `http://192.168.1.139:8080/api/chat/history/${selectedContact.partnerId}?userId=${userId}`;
+        const url = ` ${API_URL}/api/chat/history/${selectedContact.partnerId}?userId=${userId}`;
         const res = await fetch(url, {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -267,7 +268,7 @@ const guessMime = (ext: string) => {
     };
     const roomId = buildRoomId(userId, selectedContact.partnerId);
 
-    const socket = new SockJS(`http://192.168.1.139:8080/ws?token=${token}`);
+    const socket = new SockJS(` ${API_URL}/ws?token=${token}`);
     const stompClient = new Client({
       webSocketFactory: () => socket,
       reconnectDelay: 5000,
@@ -361,7 +362,7 @@ const startVideoCall = () => {
       }
       
       // Réinitialiser la connexion WebSocket
-      const socket = new SockJS(`http://192.168.1.139:8080/ws?token=${token}`);
+      const socket = new SockJS(` ${API_URL}/ws?token=${token}`);
       const newStompClient = new Client({
         webSocketFactory: () => socket,
         reconnectDelay: 5000,
@@ -549,7 +550,7 @@ const uploadAndSendImage = async (uri: string, webFile?: File) => {
         } as any);
       }
   
-      const res = await fetch('http://192.168.1.139:8080/api/chat/upload/image', {
+      const res = await fetch(' ${API_URL}/api/chat/upload/image', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
@@ -679,7 +680,7 @@ const uploadAndSendImage = async (uri: string, webFile?: File) => {
           } as any);
         }
     
-        const res = await fetch('http://192.168.1.139:8080/api/chat/upload/audio', {
+        const res = await fetch(' ${API_URL}/api/chat/upload/audio', {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}` },
           body: formData,
@@ -897,7 +898,7 @@ const uploadAndSendImage = async (uri: string, webFile?: File) => {
       item.partnerImageUrl && item.partnerImageUrl.trim().length > 0
         ? item.partnerImageUrl.startsWith("http")
           ? item.partnerImageUrl.replace("localhost:8081", "192.168.1.139:8080")
-          : `http://192.168.1.139:8080/${item.partnerImageUrl}`
+          : ` ${API_URL}/${item.partnerImageUrl}`
         : null;
     const avatarSource = avatarUrl
       ? { uri: avatarUrl }
@@ -1017,7 +1018,7 @@ const uploadAndSendImage = async (uri: string, webFile?: File) => {
                         return;
                       }
                       
-                      const socket = new SockJS(`http://192.168.1.139:8080/ws?token=${token}`);
+                      const socket = new SockJS(` ${API_URL}/ws?token=${token}`);
                       const newStompClient = new Client({
                         webSocketFactory: () => socket,
                         reconnectDelay: 5000,
@@ -1087,7 +1088,7 @@ const uploadAndSendImage = async (uri: string, webFile?: File) => {
                 selectedContact.partnerImageUrl?.trim()
                   ? { uri: selectedContact.partnerImageUrl.startsWith('http')
                         ? selectedContact.partnerImageUrl.replace('localhost:8081', 'localhost:8080')
-                        : `http://192.168.1.139:8080/${selectedContact.partnerImageUrl}` }
+                        : ` ${API_URL}/${selectedContact.partnerImageUrl}` }
                   : require('../../assets/images/profile.jpg')
               }
               style={styles.profileImage}

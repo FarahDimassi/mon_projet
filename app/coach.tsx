@@ -41,6 +41,7 @@ import NavbarCoach from "@/components/NavbarCoach";
 import * as Notifications from 'expo-notifications';
 import Toast from "react-native-toast-message";
 import { rejectInvitation } from "@/utils/invitationService";
+import { API_URL } from "@/utils/config";
 
 interface Invitation {
   id: number;
@@ -965,10 +966,10 @@ useEffect(() => {
 
 const buildAvatarUrl = (rawUrl?: string) => {
   console.log(rawUrl);
-  const baseUrl = "http://192.168.1.139:8080/";
+  const baseUrl = `${API_URL}/`;
   if (rawUrl && rawUrl.trim().length > 0) {
     return rawUrl.startsWith("http")
-      ? rawUrl.replace("localhost:8081", "192.168.1.139:8080")
+      ? rawUrl.replace("localhost:8081",  `${API_URL}`)
       : baseUrl + rawUrl;
   }
   console.log(rawUrl);

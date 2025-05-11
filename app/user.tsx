@@ -31,6 +31,7 @@ import Footer from "../components/Footer";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import NavbarIA from "@/components/NavbarIA";
 import { Icon } from "react-native-paper";
+import { API_URL } from "@/utils/config";
 
 interface Notification {
   isRead: any;
@@ -334,7 +335,7 @@ export default function UserPage() {
         const userIdFromToken = await getUserIdFromToken();
         const token = await getToken();
         const response = await fetch(
-          `http://192.168.1.139:8080/api/scannedproducts/user/${userIdFromToken}/date/${formattedDate}`,
+          `${API_URL}/api/scannedproducts/user/${userIdFromToken}/date/${formattedDate}`,
           {
             headers: {
               Authorization: `Bearer ${token}`,

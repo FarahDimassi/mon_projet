@@ -22,6 +22,7 @@ import { getToken, getUserIdFromToken } from "../utils/authService";
 import { Ionicons } from "@expo/vector-icons";
 // @ts-ignore
 import { useRouter } from "expo-router";
+import { API_URL } from "@/utils/config";
 
 // Import Lottie conditionnel
 let LottieView: any = () => null;
@@ -59,7 +60,7 @@ export default function NotificationsScreen() {
       const userId = await getUserIdFromToken();
       const token = await getToken();
       const res = await fetch(
-        `http://192.168.1.139:8080/api/notifications/user/${userId}`,
+        `${API_URL}/api/notifications/user/${userId}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       const data = await res.json();
@@ -270,7 +271,7 @@ export default function NotificationsScreen() {
     try {
       const token = await getToken();
       await fetch(
-        `http://192.168.1.139:8080/api/notifications/${notificationId}/read`,
+        `${API_URL}/api/notifications/${notificationId}/read`,
         {
           method: 'PUT',
           headers: { Authorization: `Bearer ${token}` }

@@ -21,6 +21,7 @@ import {
 import { Ionicons, MaterialCommunityIcons, FontAwesome5, Feather } from "@expo/vector-icons";
 // @ts-ignore
 import { useNavigation } from "expo-router";
+import { API_URL } from "@/utils/config";
 
 export default function CalendarScreen() {
   const [selectedDate, setSelectedDate] = useState("");
@@ -72,7 +73,7 @@ export default function CalendarScreen() {
     setScannedProducts([]); // Vide les anciens
     const token = await getToken();
     const res = await fetch(
-      `http://192.168.1.139:8080/api/scannedproducts/user/${userId}/date/${date}`,
+      ` ${API_URL}/api/scannedproducts/user/${userId}/date/${date}`,
       {
         method: "GET",
         headers: {
@@ -124,7 +125,7 @@ export default function CalendarScreen() {
       // Exemple de requête pour obtenir les plans du mois
       const token = await getToken();
       const response = await fetch(
-        `http://192.168.1.139:8080/api/mealplans/user/${userId}/range?startDate=${startDate}&endDate=${endDate}`,
+        `${API_URL}/api/mealplans/user/${userId}/range?startDate=${startDate}&endDate=${endDate}`,
         {
           method: "GET",
           headers: {

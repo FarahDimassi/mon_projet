@@ -5,6 +5,7 @@ import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { getToken, getUserIdFromToken } from '@/utils/authService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { API_URL } from './config';
 
 // 1) configure le handler pour quand l'app est ouverte
 Notifications.setNotificationHandler({
@@ -50,7 +51,7 @@ export async function registerForPushNotificationsAsync(): Promise<string> {
   // Envoie-le à ton backend
   const jwt = await getToken();
   const userId = await getUserIdFromToken();
-  await fetch('http://192.168.1.139:8080/api/notifications/register-device', {
+  await fetch(`${API_URL}/api/notifications/register-device`, {
     method:  'POST',
     headers: {
       'Content-Type':  'application/json',

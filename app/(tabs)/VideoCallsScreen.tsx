@@ -2,10 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { getUserIdFromToken, getToken } from '../../utils/tokenUtils';
-
+import { API_URL } from '@/utils/config';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-let API_URL = "http://192.168.1.139:8080";
+
 export default function VideoCallsScreen() {
   const router = useRouter();
   interface Contact {

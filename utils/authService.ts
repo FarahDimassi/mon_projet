@@ -3,9 +3,12 @@ import { jwtDecode } from "jwt-decode";
 import * as Network from "expo-network";
 import { Platform } from "react-native";
 import { registerForPushNotificationsAsync } from "./NotificationService";
+import { API_URL } from './config'; 
 import * as DocumentPicker from "expo-document-picker";
 import axios from "axios";
-let API_URL = "http://192.168.1.139:8080"; 
+// Assurez-vous d'importer correctement votre URL de base
+
+/* let API_URL = "http://192.168.1.139:8080";  */
 
 // 🚀 Détection automatique de l'IP locale
 /* async function detectLocalIp() {
@@ -733,7 +736,7 @@ export const getFullImageUrl = (url: string): string => {
 
 console.log(filename)
 
-  return `http://192.168.1.139:8080/uploads/${filename}`;
+  return `${API_URL}/uploads/${filename}`;
 };
 export async function uploadUserPhoto(userId: number, file: string | Blob): Promise<string> {
   const formData = new FormData();
@@ -754,7 +757,7 @@ export async function uploadUserPhoto(userId: number, file: string | Blob): Prom
   const token = await getToken();
   console.log("Token utilisé pour l'upload :", token);
 
-  const response = await fetch("http://192.168.1.139:8080/api/users/uploadPhoto", {
+  const response = await fetch(`${API_URL}/api/users/uploadPhoto`, {
     method: "POST",
     body: formData,
     headers: {
@@ -1004,7 +1007,7 @@ export async function getUserByIdForCoach(userId: number): Promise<any> {
     const token = await getToken();
     console.log("Token utilisé pour l'upload :", token);
   
-    const response = await fetch("http://192.168.1.139:8080/api/coach/uploadPhoto", {  // Endpoint for coach photo upload
+    const response = await fetch(`${API_URL}/api/coach/uploadPhoto`, {  // Endpoint for coach photo upload
       method: "POST",
       body: formData,
       headers: {
@@ -1051,7 +1054,7 @@ export async function getUserByIdForCoach(userId: number): Promise<any> {
 export const getMessages = async (conversationId: number): Promise<any[]> => {
   try {
     const response = await fetch(
-      `http://192.168.1.139:8080/api/conversations/${conversationId}/messages`,
+      `${API_URL}/api/conversations/${conversationId}/messages`,
       {
         method: "GET",
         headers: {
@@ -1703,7 +1706,7 @@ export const sendNotificationToUser = async (
     throw new Error("Impossible de récupérer le senderId");
   }
 
-  return fetch(`http://192.168.1.139:8080/api/notifications/send`, {
+  return fetch(`${API_URL}/api/notifications/send`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -1732,7 +1735,7 @@ export async function sendBadgeToUser(
 ) {
   const token = await getToken();  // récupère votre JWT
   const url =
-    `http://192.168.1.139:8080/api/coach/sendBadge` +
+    `${API_URL}/api/coach/sendBadge` +
     `?coachId=${coachId}` +
     `&userId=${userId}` +
     `&badgeId=${encodeURIComponent(badgeId)}` +

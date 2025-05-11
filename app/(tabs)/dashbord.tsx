@@ -25,6 +25,7 @@ import { getToken, getUserIdFromToken } from "../../utils/authService";
 import NavbarIA from "@/components/NavbarIA";
 import Toast from "react-native-toast-message";
 import { requestResetInvitationIA } from "@/utils/invitationService";
+import { API_URL } from "@/utils/config";
 const Dashboard: React.FC = () => {
   // États pour l'ID utilisateur et le plan
   const [userId, setUserId] = useState<number | null>(null);
@@ -157,7 +158,7 @@ console.log("Form data:", formData);
         `Progression : ${progressPercent}%`
       );
       const token = await getToken();
-      const res = await fetch("http://192.168.1.139:8080/api/progress", {
+      const res = await fetch(`${API_URL}/api/progress`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

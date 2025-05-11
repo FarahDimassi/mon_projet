@@ -19,18 +19,21 @@ import axios from "axios";
 import ProtectedRoute from "../../utils/ProtectedRoute";
 import NavbarIA from "@/components/NavbarIA";
 import Footer from "../../components/Footer";
-import { getUserIdFromToken, getToken } from "@/utils/authService";
+import { getUserIdFromToken, getToken, sendNotificationToUser } from "@/utils/authService";
 import * as Haptics from 'expo-haptics';
 import LottieView from "lottie-react-native";
 import { useFocusEffect } from "expo-router";
 import Toast from 'react-native-toast-message';
 import FooterR from "@/components/FooterR";
-
+import { API_URL } from "../../utils/config";
+import * as Notifications from 'expo-notifications';
+import { registerBadgeNotification } from "@/utils/badgeNotificationService";
+import { addUserPoints } from "@/utils/badgeService";
 
 // Clé API Gemini
 const GEMINI_API_KEY = "AIzaSyAv-z7qo8OT1q1z90VqKlHQ2TgRsB5br0w";
 const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
-const API_URL = "http://192.168.1.139:8080";
+
 
 // Interface pour les défis
 interface Challenge {
@@ -54,15 +57,29 @@ interface Bonus {
   unlocked: boolean;
 }
 
+// Interface pour les badges
+interface Badge {
+  id: string;
+  name: string; 
+  description: string;
+  icon: string;
+  image: string;
+  unlockedAt: string | null;
+  requiredBonusCount: number;
+}
+
 export default function DailyChallenge() {
   const [challenges, setChallenges] = useState<Challenge[]>([]);
   const [bonuses, setBonuses] = useState<Bonus[]>([]);
+  const [badges, setBadges] = useState<Badge[]>([]);
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<number | null>(null);
   const [totalPoints, setTotalPoints] = useState(0);
   const [streak, setStreak] = useState(0);
   const [showConfetti, setShowConfetti] = useState(false);
   const [selectedChallenge, setSelectedChallenge] = useState<Challenge | null>(null);
+  const [badgeModalVisible, setBadgeModalVisible] = useState(false);
+  const [newBadgeEarned, setNewBadgeEarned] = useState<Badge | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [animation] = useState(new Animated.Value(0));
   const [refreshing, setRefreshing] = useState(false);
@@ -101,6 +118,9 @@ export default function DailyChallenge() {
         
         // Charger les bonus
         await loadBonuses(id);
+        
+        // Charger les badges
+        await loadBadges(id);
       } catch (error) {
         console.error("Erreur lors de l'initialisation:", error);
       } finally {
@@ -343,6 +363,53 @@ export default function DailyChallenge() {
     }
   };
 
+  // Charger les badges disponibles
+  const loadBadges = async (id: number) => {
+    try {
+      const storedBadges = await AsyncStorage.getItem(`userBadges_${id}`);
+      
+      if (storedBadges) {
+        setBadges(JSON.parse(storedBadges));
+      } else {
+        // Badges par défaut
+        const defaultBadges: Badge[] = [
+          {
+            id: "badge-1",
+            name: "Débutant Fitness",
+            description: "Débloquer 1 bonus",
+            icon: "medal",
+            image: "https://img.icons8.com/color/96/000000/medal-first-place.png",
+            unlockedAt: null,
+            requiredBonusCount: 1
+          },
+          {
+            id: "badge-2",
+            name: "Athlète en devenir",
+            description: "Débloquer 2 bonus",
+            icon: "award",
+            image: "https://img.icons8.com/color/96/000000/medal-second-place.png",
+            unlockedAt: null,
+            requiredBonusCount: 2
+          },
+          {
+            id: "badge-3",
+            name: "Champion Fitness",
+            description: "Débloquer 3 bonus",
+            icon: "crown",
+            image: "https://img.icons8.com/color/96/000000/olympic-medal-gold.png",
+            unlockedAt: null,
+            requiredBonusCount: 3
+          }
+        ];
+        
+        await AsyncStorage.setItem(`userBadges_${id}`, JSON.stringify(defaultBadges));
+        setBadges(defaultBadges);
+      }
+    } catch (error) {
+      console.error("Erreur lors du chargement des badges:", error);
+    }
+  };
+
   // Marquer un défi comme complété
   const completeChallenge = async (challenge: Challenge) => {
     if (!userId) return;
@@ -457,6 +524,9 @@ export default function DailyChallenge() {
         // Animation pour le bonus
         setShowConfetti(true);
         setTimeout(() => setShowConfetti(false), 3000);
+        
+        // Vérifier si des badges peuvent être débloqués avec ces nouveaux bonus
+        await checkBadges(id, updatedBonuses);
       }
       
       setBonuses(updatedBonuses);
@@ -464,6 +534,76 @@ export default function DailyChallenge() {
       
     } catch (error) {
       console.error("Erreur lors de la vérification des bonus:", error);
+    }
+  };
+  
+  // Vérifier si des badges sont débloqués
+  const checkBadges = async (id: number, currentBonuses: Bonus[]) => {
+    try {
+      // Compter le nombre de bonus débloqués
+      const unlockedBonusCount = currentBonuses.filter(bonus => bonus.unlocked).length;
+      
+      // Mettre à jour les badges selon les critères
+      const today = new Date().toISOString();
+      const updatedBadges = badges.map(badge => {
+        if (badge.unlockedAt) return badge;
+        
+        // Débloquer le badge si le nombre requis de bonus est atteint
+        if (unlockedBonusCount >= badge.requiredBonusCount) {
+          return { ...badge, unlockedAt: today };
+        }
+        
+        return badge;
+      });
+      
+      // Vérifier si de nouveaux badges ont été débloqués
+      const newlyUnlocked = updatedBadges.filter((b, i) => 
+        b.unlockedAt && !badges[i].unlockedAt
+      );
+      
+      if (newlyUnlocked.length > 0) {
+        // Afficher la modale pour le premier nouveau badge
+        setNewBadgeEarned(newlyUnlocked[0]);
+        setBadgeModalVisible(true);
+        
+        // Animation pour le nouveau badge
+        setShowConfetti(true);
+        setTimeout(() => setShowConfetti(false), 3000);
+        
+        // Jouer une vibration haptic pour la récompense
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        
+        // Points pour chaque badge débloqué (50 points par badge)
+        const badgePoints = 50 * newlyUnlocked.length;
+        
+        // Mettre à jour les points de l'utilisateur
+        const newTotal = totalPoints + badgePoints;
+        setTotalPoints(newTotal);
+        await saveUserStats(id, newTotal, streak);
+        
+        // Enregistrer les badges dans le stockage local
+        await AsyncStorage.setItem(`userBadges_${id}`, JSON.stringify(updatedBadges));
+        
+        // Pour chaque badge nouvellement débloqué, l'enregistrer dans les notifications
+        for (const badge of newlyUnlocked) {
+          // Utiliser le service de notification de badge
+          await registerBadgeNotification(id, {
+            id: badge.id,
+            name: badge.name,
+            description: badge.description,
+            imageUrl: badge.image,
+            points: 50 // Chaque badge vaut 50 points par défaut
+          });
+          
+          // Ajouter les points au localStorage (les points sont déjà ajoutés dans registerBadgeNotification)
+          await addUserPoints(id, 50);
+        }
+      }
+      
+      setBadges(updatedBadges);
+      
+    } catch (error) {
+      console.error("Erreur lors de la vérification des badges:", error);
     }
   };
 
@@ -771,6 +911,64 @@ export default function DailyChallenge() {
                           Marquer comme terminé
                         </Text>
                       )}
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
+            </View>
+          </View>
+        </Modal>
+
+        {/* Badge Earned Modal */}
+        <Modal
+          visible={badgeModalVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setBadgeModalVisible(false)}
+        >
+          <View style={styles.badgeModalOverlay}>
+            <View style={styles.badgeModalContainer}>
+              {newBadgeEarned && (
+                <>
+                  <View style={styles.badgeModalHeader}>
+                    <Text style={styles.badgeModalTitle}>Nouveau Badge Débloqué!</Text>
+                    <TouchableOpacity
+                      style={styles.closeButton}
+                      onPress={() => setBadgeModalVisible(false)}
+                    >
+                      <Ionicons name="close" size={24} color="#718096" />
+                    </TouchableOpacity>
+                  </View>
+                  
+                  <View style={styles.badgeModalContent}>
+                    <View style={styles.badgeImageContainer}>
+                      {newBadgeEarned.image ? (
+                        <Image 
+                          source={{ uri: newBadgeEarned.image }} 
+                          style={styles.badgeImage}
+                          resizeMode="contain"
+                        />
+                      ) : (
+                        <View style={styles.badgeIconContainer}>
+                          <FontAwesome5
+                            name={newBadgeEarned.icon}
+                            size={60}
+                            color="#FFD700"
+                          />
+                        </View>
+                      )}
+                    </View>
+                    
+                    <Text style={styles.badgeName}>{newBadgeEarned.name}</Text>
+                    <Text style={styles.badgeDescription}>
+                      {newBadgeEarned.description}
+                    </Text>
+                    
+                    <TouchableOpacity
+                      style={styles.badgeCloseButton}
+                      onPress={() => setBadgeModalVisible(false)}
+                    >
+                      <Text style={styles.badgeCloseButtonText}>Excellent!</Text>
                     </TouchableOpacity>
                   </View>
                 </>
@@ -1149,6 +1347,74 @@ const styles = StyleSheet.create({
     backgroundColor: "#10B981",
   },
   modalCompleteButtonText: {
+    color: "#fff",
+    fontWeight: "bold",
+    fontSize: 16,
+  },
+  badgeModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  badgeModalContainer: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    width: "100%",
+    maxHeight: "80%",
+    overflow: "hidden",
+  },
+  badgeModalHeader: {
+    padding: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+  },
+  badgeModalTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#1a202c",
+    flex: 1,
+  },
+  badgeModalContent: {
+    padding: 20,
+    alignItems: "center",
+  },
+  badgeImageContainer: {
+    marginBottom: 20,
+  },
+  badgeImage: {
+    width: 100,
+    height: 100,
+  },
+  badgeIconContainer: {
+    width: 100,
+    height: 100,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  badgeName: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#1a202c",
+    marginBottom: 8,
+  },
+  badgeDescription: {
+    fontSize: 14,
+    color: "#4A5568",
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  badgeCloseButton: {
+    backgroundColor: "rgba(195, 0, 0, 0.5)",
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    alignItems: "center",
+  },
+  badgeCloseButtonText: {
     color: "#fff",
     fontWeight: "bold",
     fontSize: 16,

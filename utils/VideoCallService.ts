@@ -1,8 +1,8 @@
 import { Alert, Platform } from 'react-native';
 import * as Linking from 'expo-linking';
-
+import { API_URL } from './config';
 import { getToken } from './tokenUtils';
-let API_URL = "http://192.168.1.139:8080";
+
 /**
  * Service for managing video calls in the app
  */

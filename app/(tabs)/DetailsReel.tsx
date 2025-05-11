@@ -1,4 +1,5 @@
 import { getToken, getUserIdFromToken } from "@/utils/authService";
+import { API_URL } from "@/utils/config";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 // @ts-ignore
 import { router, useLocalSearchParams } from "expo-router";
@@ -19,7 +20,7 @@ export default function DetailsReel() {
         try {
           const userId = await getUserIdFromToken();
           const token = await getToken();
-          const response = await fetch("http://192.168.1.139:8080/api/scannedproducts", {
+          const response = await fetch(`${API_URL}/api/scannedproducts`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",

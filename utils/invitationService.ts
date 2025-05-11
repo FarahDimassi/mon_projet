@@ -3,7 +3,7 @@ import { jwtDecode } from "jwt-decode";
 import * as Network from "expo-network";
 import { Platform } from "react-native";
 import { getToken } from "./authService";
-
+import { API_URL } from "./config";
 // Define the Invitation interface
 interface Invitation {
   id: number;
@@ -12,7 +12,7 @@ interface Invitation {
   // Add other properties as needed based on your API response
 }
 
-let API_URL = "http://192.168.1.139:8080"; 
+
 
 export async function requestResetInvitation(userId: number, message: string): Promise<any> {
     try {

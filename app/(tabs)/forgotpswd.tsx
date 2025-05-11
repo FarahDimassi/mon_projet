@@ -217,6 +217,7 @@ export default function ForgotPasswordScreen() {
                 autoCapitalize="none"
                 returnKeyType="send"
                 onSubmitEditing={handleSendOTP}
+                 placeholderTextColor="#999"
               />
               
               <TouchableOpacity 
@@ -302,6 +303,7 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 24,
     fontSize: 15,
+    
   },
   button: {
     backgroundColor: "rgba(195, 0, 0, 0.4)",

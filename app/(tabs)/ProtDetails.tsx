@@ -5,6 +5,7 @@ import { Button, Card, Divider, ProgressBar } from "react-native-paper";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getToken, getUserIdFromToken } from "@/utils/authService";
+import { API_URL } from "@/utils/config";
 
 const ProtDetails: React.FC = () => {
     const { name, calories, carbs, protein, fat } = useLocalSearchParams();
@@ -14,7 +15,7 @@ const ProtDetails: React.FC = () => {
         try {
         const userId = await getUserIdFromToken();
         const token = await getToken();
-          const response = await fetch("http://192.168.1.139:8080/api/scannedproducts", {
+          const response = await fetch(`${API_URL}/api/scannedproducts`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",

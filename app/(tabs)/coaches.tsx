@@ -39,7 +39,7 @@ import { requestResetInvitation } from "@/utils/invitationService";
 import Toast from "react-native-toast-message";
 import * as ImagePicker from "expo-image-picker";
 import NavbarUser from "@/components/NavbarUser";
-
+import { API_URL } from "@/utils/config";
 interface User {
   id: number;
   email: string;
@@ -87,7 +87,30 @@ export default function Coaches() {
     async function fetchCoaches() {
       try {
         const fetchedCoaches: User[] = await getAllCoaches();
-        setCoaches(fetchedCoaches);
+        
+        // Pour chaque coach, récupérer ses reviews et calculer sa note moyenne
+        const coachesWithRatings = await Promise.all(
+          fetchedCoaches.map(async (coach) => {
+            try {
+              const payload: CoachReviewsPayload = await getCoachReviewsForMe(coach.id);
+              return {
+                ...coach,
+                averageRating: payload.averageRating || 0
+              };
+            } catch (error) {
+              console.error(`Erreur lors de la récupération des notes pour le coach ${coach.id}:`, error);
+              return {
+                ...coach,
+                averageRating: 0
+              };
+            }
+          })
+        );
+        
+        // Tri des coachs par note moyenne décroissante (du plus haut au plus bas)
+        const sortedCoaches = coachesWithRatings.sort((a, b) => b.averageRating - a.averageRating);
+        
+        setCoaches(sortedCoaches);
       } catch (error) {
         console.error("❌ Erreur lors de la récupération des coachs :", error);
         Alert.alert("Erreur", "Impossible de récupérer la liste des coachs.");
@@ -348,8 +371,8 @@ export default function Coaches() {
     const avatarUrl = 
       item.photoUrl && item.photoUrl.trim().length > 0
         ? item.photoUrl.startsWith("http")
-          ? item.photoUrl.replace("localhost:8081", "192.168.1.139:8080")
-          : `http://192.168.1.139:8080/${item.photoUrl}`
+          ? item.photoUrl.replace("localhost:8081", `${API_URL}`)
+          : `${API_URL}/${item.photoUrl}`
         : null;
 
     const avatarSource = avatarUrl
@@ -447,7 +470,7 @@ export default function Coaches() {
         {/* Nombre de résultats */}
         <View style={styles.resultCountContainer}>
           <Text style={styles.resultCount}>
-            {filteredCoaches.length} {filteredCoaches.length > 1 ? 'coachs disponibles' : 'coach disponible'}
+            {filteredCoaches.length} {filteredCoaches.length > 1 ? 'coachs disponibles, classés du mieux noté au moins bien noté' : 'coach disponible'}
           </Text>
         </View>
         
@@ -496,8 +519,8 @@ export default function Coaches() {
                       selectedCoach.photoUrl && selectedCoach.photoUrl.trim().length > 0
                         ? {
                             uri: selectedCoach.photoUrl.startsWith("http")
-                              ? selectedCoach.photoUrl.replace("localhost:8081", "192.168.1.139:8080")
-                              : `http://192.168.1.139:8080/${selectedCoach.photoUrl}`
+                              ? selectedCoach.photoUrl.replace("localhost:8081",  `${API_URL}`)
+                              : `${API_URL}/${selectedCoach.photoUrl}`
                           }
                         : require("../../assets/images/profile.jpg")
                     } 
@@ -610,8 +633,8 @@ export default function Coaches() {
                           selectedCoach.photoUrl && selectedCoach.photoUrl.trim().length > 0
                             ? {
                                 uri: selectedCoach.photoUrl.startsWith("http")
-                                  ? selectedCoach.photoUrl.replace("localhost:8081", "192.168.1.139:8080")
-                                  : `http://192.168.1.139:8080/${selectedCoach.photoUrl}`
+                                  ? selectedCoach.photoUrl.replace("localhost:8081",  `${API_URL}`)
+                                  : `${API_URL}/${selectedCoach.photoUrl}`
                               }
                             : require("../../assets/images/profile.jpg")
                         } 

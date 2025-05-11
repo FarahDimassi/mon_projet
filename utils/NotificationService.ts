@@ -2,6 +2,7 @@ import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
 import { getUserIdFromToken } from "./tokenUtils";
 import { Platform } from "react-native";
+import { API_URL } from "./config";
 
 export async function registerForPushNotificationsAsync() {
   if (!Constants.isDevice) return;
@@ -14,7 +15,7 @@ export async function registerForPushNotificationsAsync() {
   if (finalStatus !== "granted") return;
   const token = (await Notifications.getExpoPushTokenAsync()).data;
   const userId = await getUserIdFromToken();
-  await fetch("http://192.168.1.139:8080/api/notifications/register-device", {
+  await fetch(`${API_URL}/api/notifications/register-device`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ userId: String(userId), token, deviceType: Platform.OS }),

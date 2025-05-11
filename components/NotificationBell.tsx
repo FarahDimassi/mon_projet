@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { getToken, getUserIdFromToken } from "../utils/authService";
 // @ts-ignore
 import { useRouter } from "expo-router";
+import { API_URL } from "@/utils/config";
 
 export default function NotificationBell() {
   const [count, setCount] = useState(0);
@@ -14,7 +15,7 @@ export default function NotificationBell() {
     const userId = await getUserIdFromToken();
     const token = await getToken();
     const res = await fetch(
-      `http://192.168.1.139:8080/api/notifications/user/${userId}/unread-count`,
+      `${API_URL}/api/notifications/user/${userId}/unread-count`,
       { headers: { Authorization: `Bearer ${token}` } }
     );
     const json = await res.json();
@@ -36,7 +37,7 @@ export default function NotificationBell() {
         const userId = await getUserIdFromToken();
         const token = await getToken();
         await fetch(
-          `http://192.168.1.139:8080/api/notifications/user/${userId}/read-all`,
+          `${API_URL}/api/notifications/user/${userId}/read-all`,
           {
             method: "PUT",
             headers: { Authorization: `Bearer ${token}` },

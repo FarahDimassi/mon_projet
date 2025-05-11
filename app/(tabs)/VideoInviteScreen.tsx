@@ -17,7 +17,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { getUserIdFromToken, getToken } from '../../utils/tokenUtils';
 import { VideoCallService } from '../../utils/VideoCallService';
-let API_URL = "http://192.168.1.139:8080";
+import { API_URL } from '@/utils/config';
+
 
 type Subscriber = {
   id: number;

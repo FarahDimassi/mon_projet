@@ -15,6 +15,7 @@ import FooterAdmin from "@/components/FooterAdmin";
 import NavbarAdmin from "@/components/NavbarAdmin";
  import * as Notifications from 'expo-notifications';
  import { Platform, Alert } from 'react-native';
+import { API_URL } from "@/utils/config";
 
 
 // ✅ Dimensions de l'écran
@@ -167,7 +168,7 @@ async function registerForPushNotificationsAsync(): Promise<string|undefined> {
        registerForPushNotificationsAsync().then(async token => {
          if (!token) return;
          // TODO : remplacer l’URL et payload par votre endpoint
-         await fetch('http://192.168.1.139:8080/api/admin/save-push-token', {
+         await fetch( `${API_URL}/api/admin/save-push-token`, {
            method: 'POST',
            headers: { 'Content-Type': 'application/json' },
            body: JSON.stringify({ expoPushToken: token })

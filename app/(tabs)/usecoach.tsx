@@ -24,6 +24,7 @@ import FooterC from "../../components/FooterC";
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, AntDesign, MaterialIcons } from '@expo/vector-icons';
 import NavbarCoach from "@/components/NavbarCoach";
+import { API_URL } from "@/utils/config";
 
 const { width } = Dimensions.get('window');
 
@@ -189,7 +190,7 @@ const UseCoach: React.FC = () => {
 
   // Fonction de construction de l'URL d'avatar à partir de photoUrl
   const buildAvatarUrl = (rawUrl?: string) => {
-    const baseUrl = "http://192.168.1.139:8080/";
+    const baseUrl = `${API_URL}/`;
     if (rawUrl && rawUrl.trim().length > 0) {
       return rawUrl.startsWith("http")
         ? rawUrl.replace("localhost:8081", "192.168.1.139:8080")
