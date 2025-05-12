@@ -217,7 +217,7 @@ export default function ForgotPasswordScreen() {
                 autoCapitalize="none"
                 returnKeyType="send"
                 onSubmitEditing={handleSendOTP}
-                 placeholderTextColor="#999"
+                placeholderTextColor="#999"
               />
               
               <TouchableOpacity 
