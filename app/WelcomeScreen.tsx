@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -28,19 +28,72 @@ const WelcomeScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProps>();
   const [showVideo, setShowVideo] = useState(false);
   const videoRef = useRef<Video>(null);
+  const [isVideoPlaying, setIsVideoPlaying] = useState(false);
+  const isWeb = Platform.OS === 'web';
+
+  // Ajout d'un useEffect pour lancer la vidéo automatiquement après 2 secondes
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowVideo(true);
+      if (!isWeb) {
+        // Utiliser playAsync uniquement sur les plateformes natives
+        setTimeout(() => {
+          try {
+            videoRef.current?.playAsync();
+            setIsVideoPlaying(true);
+          } catch (error) {
+            console.error("Erreur lors de la lecture de la vidéo:", error);
+          }
+        }, 100);
+      } else {
+        // Sur le web, on se contente de mettre à jour l'état
+        setIsVideoPlaying(true);
+      }
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, [isWeb]);
 
   const handleGetStarted = () => {
+    // Fermeture de la vidéo lorsque l'utilisateur clique sur "Try for free"
+    if (showVideo) {
+      if (!isWeb) {
+        try {
+          videoRef.current?.pauseAsync();
+        } catch (error) {
+          console.error("Erreur lors de la pause de la vidéo:", error);
+        }
+      }
+      setIsVideoPlaying(false);
+      setShowVideo(false);
+    }
     navigation.navigate('AuthScreen');
   };
 
   const toggleVideo = () => {
-    setShowVideo(!showVideo);
     if (!showVideo) {
-      setTimeout(() => {
-        videoRef.current?.playAsync();
-      }, 100);
+      setShowVideo(true);
+      if (!isWeb) {
+        setTimeout(() => {
+          try {
+            videoRef.current?.playAsync();
+            setIsVideoPlaying(true);
+          } catch (error) {
+            console.error("Erreur lors de la lecture de la vidéo:", error);
+          }
+        }, 100);
+      } else {
+        setIsVideoPlaying(true);
+      }
     } else {
-      videoRef.current?.pauseAsync();
+      if (!isWeb) {
+        try {
+          videoRef.current?.pauseAsync();
+        } catch (error) {
+          console.error("Erreur lors de la pause de la vidéo:", error);
+        }
+      }
+      setIsVideoPlaying(!isVideoPlaying);
     }
   };
 
@@ -53,9 +106,9 @@ const WelcomeScreen: React.FC = () => {
       >
         <View style={styles.header}>
           <Text style={styles.logoText}>NutriMind</Text>
-          <TouchableOpacity style={styles.menuButton}>
+         {/*  <TouchableOpacity style={styles.menuButton}>
             <Ionicons name="menu" size={24} color="white" />
-          </TouchableOpacity>
+          </TouchableOpacity> */}
         </View>
 
         <View style={styles.mediaContainer}>
@@ -67,6 +120,7 @@ const WelcomeScreen: React.FC = () => {
               useNativeControls
               resizeMode={ResizeMode.COVER}
               isLooping
+              shouldPlay={isWeb && isVideoPlaying} // Pour le web, utiliser shouldPlay au lieu des méthodes async
             />
           ) : (
             <Image
@@ -75,22 +129,6 @@ const WelcomeScreen: React.FC = () => {
               resizeMode="cover"
             />
           )}
-
-          <View style={styles.overlayControls}>
-            <TouchableOpacity
-              style={styles.videoButton}
-              onPress={toggleVideo}
-            >
-              <Ionicons
-                name={showVideo ? "pause" : "play"}
-                size={22}
-                color="#fff"
-              />
-              <Text style={styles.videoButtonText}>
-                {showVideo ? "Pause" : "Play video"}
-              </Text>
-            </TouchableOpacity>
-          </View>
 
           {/* Floating brand icons like in the reference */}
           <View style={[styles.floatingIcon, { top: '15%', right: '15%' }]}>
@@ -139,31 +177,22 @@ const WelcomeScreen: React.FC = () => {
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.videoButtonMobile}
+              style={styles.videoButton}
               onPress={toggleVideo}
               activeOpacity={0.7}
             >
-              <Text style={styles.videoButtonMobileText}>Play video</Text>
+              <Text style={styles.videoButtonText}>
+                {showVideo && isVideoPlaying ? "Pause" : "Play video"}
+              </Text>
               <View style={styles.playIcon}>
-                <Ionicons name="play" size={14} color="rgba(195, 0, 0, 0.8)" />
+                <Ionicons 
+                  name={showVideo && isVideoPlaying ? "pause" : "play"} 
+                  size={14} 
+                  color="rgba(195, 0, 0, 0.8)" 
+                />
               </View>
             </TouchableOpacity>
           </View>
-{/* 
-          <View style={styles.socialIcons}>
-            <TouchableOpacity style={styles.socialIcon}>
-              <Ionicons name="logo-facebook" size={24} color="#3b5998" />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.socialIcon}>
-              <Ionicons name="logo-instagram" size={24} color="#C13584" />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.socialIcon}>
-              <Ionicons name="logo-twitter" size={24} color="#1DA1F2" />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.socialIcon}>
-              <Ionicons name="logo-telegram" size={24} color="#0088cc" />
-            </TouchableOpacity>
-          </View> */}
         </View>
       </LinearGradient>
     </SafeAreaView>
@@ -212,27 +241,6 @@ const styles = StyleSheet.create({
   video: {
     width: '100%',
     height: '100%',
-  },
-  overlayControls: {
-    position: 'absolute',
-    top: 20,
-    right: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    borderRadius: 25,
-    padding: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  videoButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-  },
-  videoButtonText: {
-    color: '#fff',
-    marginLeft: 8,
-    fontWeight: '600',
   },
   floatingIcon: {
     position: 'absolute',
@@ -345,13 +353,13 @@ const styles = StyleSheet.create({
   buttonIcon: {
     marginLeft: 8,
   },
-  videoButtonMobile: {
+  videoButton: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 8,
     paddingHorizontal: 12,
   },
-  videoButtonMobileText: {
+  videoButtonText: {
     color: '#333',
     marginRight: 8,
     fontWeight: '500',

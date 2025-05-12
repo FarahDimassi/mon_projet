@@ -987,6 +987,7 @@ export default function DailyChallenge() {
                           source={{ uri: newBadgeEarned.image }} 
                           style={styles.badgeImage}
                           resizeMode="contain"
+                          onError={(e) => console.error("Erreur de chargement d'image:", e.nativeEvent.error)}
                         />
                       ) : (
                         <View style={styles.badgeIconContainer}>

@@ -11,7 +11,11 @@ import {
   Image,
   ActivityIndicator,
   ImageBackground,
+  Platform,
+  Dimensions,
 } from "react-native";
+
+const { width, height } = Dimensions.get("window");
 // @ts-ignore
 import { useRouter } from "expo-router";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
@@ -711,28 +715,75 @@ export default function UserPage() {
   </View>
 </Modal>  
       {/* Modale d'intro / Sélection de coach */}
-      <Modal visible={showIntroModal} animationType="slide" transparent={true}>
-        <ImageBackground source={require("../assets/white.jpg")} style={styles.introModalOverlay}>
-          <View style={styles.blackOverlay} />
-          <View style={styles.introModalContainer}>
-            <View style={styles.introHeader}>
-              <Ionicons name="book-outline" size={40} color="rgba(0, 128, 0, 1.00)" />
-              <Text style={styles.introTitle}>Bienvenue dans votre Diary!</Text>
-            </View>
-            <Text style={styles.introContent}>Découvrez nos coachs pour vous accompagner.</Text>
-            <View style={styles.introButtonContainer}>
-              <TouchableOpacity style={styles.introButton} onPress={() => handleIntroClose("coachRell")}>
-                <Ionicons name="people-outline" size={20} color="#fff" />
-                <Text style={styles.introButtonText}>Coach Reel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.introButton} onPress={() => handleIntroClose("coachIA")}>
-                <Ionicons onPress={()=>assignCoach()} name="rocket-outline" size={20} color="#fff" />
-                <Text style={styles.introButtonText}>Coach IA</Text>
-              </TouchableOpacity>
-            </View>
+      <Modal
+      visible={showIntroModal}
+      animationType="fade"
+      transparent={true}
+    >
+      <ImageBackground 
+        source={require("../assets/white.jpg")} 
+        style={styles.introModalOverlay}
+        imageStyle={{ opacity: 0.9 }}
+      >
+        <View style={styles.blackOverlay} />
+        <View style={styles.introModalContainer}>
+          <View style={styles.introCardHeader}>
+            <Ionicons 
+              name="book-outline" 
+              size={50} 
+              color="rgba(195, 0, 0, 0.85)" 
+              style={styles.headerIcon}
+            />
+            <Text style={styles.introTitle}>Bienvenue dans votre Diary!</Text>
+            <Text style={styles.introSubtitle}>Votre parcours de bien-être commence ici</Text>
           </View>
-        </ImageBackground>
-      </Modal>
+
+          <View style={styles.divider} />
+          
+          <Text style={styles.introContent}>
+            Choisissez le coach qui vous accompagnera dans votre parcours personnel.
+          </Text>
+          
+          <View style={styles.coachOptionsContainer}>
+            <TouchableOpacity 
+              style={[styles.coachOption, styles.coachRealOption]} 
+              onPress={() => handleIntroClose("coachRell")}
+            >
+              <View style={styles.coachIconContainer}>
+                <Ionicons name="people-outline" size={28} color="#fff" />
+              </View>
+              <View style={styles.coachTextContainer}>
+                <Text style={styles.coachTitle}>Coach Réel</Text>
+                <Text style={styles.coachDescription}>Accompagnement personnalisé</Text>
+              </View>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.coachOption, styles.coachAIOption]} 
+              onPress={() => {
+                assignCoach();
+                handleIntroClose("coachIA");
+              }}
+            >
+              <View style={styles.coachIconContainer}>
+                <Ionicons name="rocket-outline" size={28} color="#fff" />
+              </View>
+              <View style={styles.coachTextContainer}>
+                <Text style={styles.coachTitle}>Coach IA</Text>
+                <Text style={styles.coachDescription}>Disponible 24/7</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+          
+         {/*  <TouchableOpacity 
+            style={styles.skipButton} 
+            onPress={() => handleIntroClose("skip")}
+          >
+            <Text style={styles.skipButtonText}>Plus tard</Text>
+          </TouchableOpacity> */}
+        </View>
+      </ImageBackground>
+    </Modal>
         {/* Modale pour le scanner d'aliments */}
         <Modal visible={modalVisible} animationType="fade" transparent={true}>
         <View style={styles.modalOverlay}>
@@ -1216,55 +1267,145 @@ const styles = StyleSheet.create({
   tickContainer: { marginLeft: 10 },
   introModalOverlay: {
     flex: 1,
-    width: "100%",
-    height: "100%",
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
+    height: '100%',
   },
   blackOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.5)",
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
   },
   introModalContainer: {
-    width: "80%",
-    backgroundColor: "#fff",
-    borderRadius: 15,
-    padding: 20,
-    alignItems: "center",
-    zIndex: 1,
+    width: width * 0.85,
+    maxHeight: height * 0.7,
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 25,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 8,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+      },
+    }),
   },
-  introHeader: {
-    flexDirection: "row",
-    alignItems: "center",
+  introCardHeader: {
+    alignItems: 'center',
     marginBottom: 15,
-    gap: 10,
+  },
+  headerIcon: {
+    marginBottom: 12,
+    ...Platform.select({
+      ios: {
+        shadowColor: 'rgba(195, 0, 0, 0.55)',
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.8,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 6,
+      },
+    }),
   },
   introTitle: {
     fontSize: 22,
-    fontWeight: "bold",
-    marginBottom: 15,
+    fontWeight: '700',
+    color: '#333',
+    textAlign: 'center',
+    marginBottom: 6,
+  },
+  introSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
+  divider: {
+    height: 1,
+    width: '90%',
+    backgroundColor: 'rgba(195, 0, 0, 0.30)',
+    marginVertical: 15,
   },
   introContent: {
     fontSize: 16,
-    textAlign: "center",
-    marginBottom: 25,
+    lineHeight: 22,
+    textAlign: 'center',
+    color: '#444',
+    marginBottom: 20,
+    paddingHorizontal: 5,
   },
-  introButtonContainer: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    width: "100%",
+  coachOptionsContainer: {
+    width: '100%',
+    marginTop: 10,
+    gap: 15,
   },
-  introButton: {
-    backgroundColor: "rgba(0, 128, 0, 1.00)",
+  coachOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    borderRadius: 12,
+    padding: 15,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.15,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  coachRealOption: {
+    backgroundColor: 'rgba(195, 0, 0, 0.45)',
+  },
+  coachAIOption: {
+    backgroundColor: 'rgba(195, 0, 0, 0.65)',
+  },
+  coachIconContainer: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 15,
+  },
+  coachTextContainer: {
+    flex: 1,
+  },
+  coachTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#fff',
+    marginBottom: 3,
+  },
+  coachDescription: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.9)',
+  },
+  skipButton: {
+    marginTop: 25,
     paddingVertical: 10,
     paddingHorizontal: 20,
-    borderRadius: 8,
-    marginHorizontal: 5,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(195, 0, 0, 0.30)',
   },
-  introButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "bold",
+  skipButtonText: {
+    color: 'rgba(195, 0, 0, 0.80)',
+    fontSize: 14,
+    fontWeight: '500',
   },
   modalOverlay: {
     flex: 1,
